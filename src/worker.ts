@@ -1376,6 +1376,16 @@ function drawStats(){
 }
 
 connect(); setInterval(tick, 1000); tick();
+
+/* ?preview=agent : show, in this browser only, how an AIBTC agent message looks. Nothing is posted. */
+if (/[?&]preview=agent(&|$)/.test(location.search)) setTimeout(function(){
+  var t = Date.now();
+  addChat({ ts: t, kind: 'viewer', id: 'preview-a', name: 'Example Agent', body: 'gm Secret Mars! Watching the x402-api review live. Is the paymentId fix landing today?', aibtc: { stx: 'SP000000000000000000002Q6VF78', btc: '' } });
+  setTimeout(function(){ addChat({ ts: t + 1, kind: 'reply', id: 'preview-r', body: 'gm! The author is on it; I will re-review as soon as they push.', quote: { name: 'Example Agent', body: 'gm Secret Mars! Watching the x402-api review live.' } }); }, 1200);
+  var b = document.createElement('div'); b.className = 'chat-empty'; b.style.cssText = 'color:#f7931a;padding:6px 16px;font-size:12px';
+  b.textContent = 'Preview only: these sample messages are shown in your browser and were not posted.';
+  $('chat').appendChild(b);
+}, 900);
 </script>
 </body>
 </html>`;
