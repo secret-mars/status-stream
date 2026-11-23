@@ -171,6 +171,18 @@ function cleanActivity(p: any): any {
   if (typeof p.cmd === 'string' && p.cmd.trim()) a.cmd = clean(p.cmd, 300);
   if (p.cmd_private === true) a.cmd_private = true;
   if (p.net === 'stacks' || p.net === 'npm' || p.net === 'aibtc') a.net = p.net;
+  // Between-cycle watcher readings (public chain and market data), drawn as cards on the page.
+  if (p.watch && typeof p.watch === 'object' && ['mempool', 'prices', 'stacks', 'reserve', 'legions'].includes(p.watch.type)) {
+    const w: any = { type: p.watch.type };
+    let n = 0;
+    for (const [k, v] of Object.entries(p.watch)) {
+      if (k === 'type' || !/^[a-zA-Z]{1,24}$/.test(k) || ++n > 16) continue;
+      if (typeof v === 'number' && Number.isFinite(v)) w[k] = v;
+      else if (typeof v === 'boolean') w[k] = v;
+      else if (typeof v === 'string') w[k] = clean(v, 40);
+    }
+    a.watch = w;
+  }
   if (p.chain && typeof p.chain === 'object') {
     const id = String(p.chain.id || '');
     if (p.chain.what === 'tx' && /^0x[0-9a-f]{64}$/.test(id)) a.chain = { what: 'tx', id };
@@ -436,6 +448,18 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .fr.priv .fi { background:#15171c; color:#4b5160; } .fr.priv .fl { color:#6e7380; font-weight:500; font-size:max(12px,1.15cqi); }
   .fr.old { opacity:.42; } .fr.old .fo { max-height:2.4em; }
   .fr.ok .fi { background:#00a86b; color:#fff; }
+  .fr.watch .fi { background:#1f2a3a; color:#7fb3ff; }
+  .wcard { margin-top:.7cqi; display:flex; flex-wrap:wrap; gap:1cqi; }
+  .wbox { display:flex; align-items:center; gap:1cqi; background:#12151b; border-radius:1cqi; padding:1cqi 1.4cqi; box-shadow:0 0 0 1px rgba(255,255,255,.06); min-width:0; }
+  .wbox .wl { width:3.2cqi; height:3.2cqi; min-width:26px; min-height:26px; border-radius:50%; overflow:hidden; flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  .wbox .wl svg { width:100%; height:100%; display:block; }
+  .wbox .wl.stx { background:#5546FF; } .wbox .wl.stx svg { width:62%; height:62%; }
+  .wbox .wl.ic { background:#2a2d35; color:#cfd3dc; font-size:max(14px,1.6cqi); }
+  .wbox .wv { font-size:max(16px,2cqi); font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .wbox .ws { font-size:max(11px,1.05cqi); color:var(--muted); margin-top:.2cqi; }
+  .wbox .up { color:#2ecc71; font-weight:700; } .wbox .dn { color:#ff6b6b; font-weight:700; }
+  .wbox.good { box-shadow:0 0 0 1px rgba(46,204,113,.45); } .wbox.alert { box-shadow:0 0 0 2px #ff3b3b; }
+  .wbox .ok { color:#2ecc71; } .wbox .bad { color:#ff6b6b; }
   .pane-bar .mini { width:22px; height:22px; border-radius:50%; overflow:hidden; flex:0 0 auto; margin-right:8px; box-shadow:0 0 0 2px #3a3d45; }
   .pane-bar .mini.working { box-shadow:0 0 0 2px var(--red); } .pane-bar .mini svg { width:100%; height:100%; }
   .tprompt { color:#fff; font-weight:600; white-space:pre-wrap; word-break:break-all; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -954,6 +978,29 @@ function feedTrim(){
   var kids = log.children;
   for (var i = 0; i < kids.length; i++) { kids[i].classList.toggle('cur', i === kids.length - 1); kids[i].classList.toggle('old', i < kids.length - 3); }
 }
+var LOGO = {};
+function logos(){
+  if (LOGO.btc) return LOGO;
+  var b = document.querySelector('.lg.btc'), f = document.querySelector('.lg.mkt');
+  LOGO.btc = b ? b.innerHTML : icon('currency-btc'); LOGO.flag = f ? f.innerHTML : icon('flag'); LOGO.stx = STX_SVG;
+  return LOGO;
+}
+function nfmt(n, d){ return Number(n).toLocaleString('en-US', { maximumFractionDigits: d || 0, minimumFractionDigits: d || 0 }); }
+function chg(p){ if (typeof p !== 'number') return ''; return ' <span class="' + (p >= 0 ? 'up' : 'dn') + '">' + (p >= 0 ? '▲' : '▼') + ' ' + Math.abs(p).toFixed(1) + '%</span>'; }
+function wbox(logo, cls, value, sub, extra){ return '<div class="wbox' + (extra ? ' ' + extra : '') + '"><span class="wl ' + cls + '">' + logo + '</span><div><div class="wv">' + value + '</div><div class="ws">' + sub + '</div></div></div>'; }
+function watchCard(w){
+  var L = logos();
+  if (w.type === 'mempool') return wbox(L.btc, 'btc', nfmt(w.fastest) + ' sat/vB', 'next block fee · 1 h ' + nfmt(w.hour) + ' sat/vB') + wbox(icon('cube'), 'ic', '#' + nfmt(w.height), 'mined ' + nfmt(w.minsAgo) + ' min ago · ' + nfmt(w.txs) + ' tx');
+  if (w.type === 'prices') return wbox(L.btc, 'btc', '$' + nfmt(w.btc), 'Bitcoin' + chg(w.btcChg)) + wbox(L.stx, 'stx', '$' + nfmt(w.stx, 4), 'Stacks' + chg(w.stxChg)) + wbox(icon('arrows-left-right'), 'ic', nfmt(w.stxSats) + ' sats', '1 STX in sats');
+  if (w.type === 'stacks') return wbox(L.stx, 'stx', '#' + nfmt(w.height), nfmt(w.secsAgo) + ' s ago · ' + nfmt(w.txs) + ' tx · on Bitcoin #' + nfmt(w.burn));
+  if (w.type === 'reserve') {
+    var moved = (w.spent || 0) + (w.mempool || 0) > 0;
+    return wbox(L.flag, 'flag', nfmt(w.btc, 2) + ' BTC', nfmt(w.read) + '/' + nfmt(w.total) + ' reserve addresses read', moved ? 'alert' : 'good') +
+      wbox(icon(moved ? 'warning' : 'check-circle'), 'ic', moved ? '<span class="bad">' + nfmt(w.spent + w.mempool) + ' moved</span>' : '<span class="ok">0 moved</span>', moved ? 'a reserve address spent: market alert' : 'no spends since the market opened', moved ? 'alert' : '');
+  }
+  if (w.type === 'legions') return wbox(icon('thumbs-up'), 'ic', nfmt(w.yesVault) + ' sats', 'YES vault · ' + nfmt(w.yesOpen) + ' open proposals') + wbox(icon('thumbs-down'), 'ic', nfmt(w.noVault) + ' sats', 'NO vault · ' + nfmt(w.noOpen) + ' open proposals');
+  return '';
+}
 function feedRow(ev){
   var log = $('termlog');
   var last = log.lastElementChild;
@@ -968,7 +1015,7 @@ function feedRow(ev){
   }
   var stx = ev.net === 'stacks';
   var r = document.createElement('div');
-  r.className = 'fr' + (stx ? ' stx' : '') + (ev.cmd_private && !ev.cmd ? ' priv' : '') + (ev.term && !ev.term.failed ? ' ok' : '');
+  r.className = 'fr' + (ev.watch ? ' watch' : '') + (stx ? ' stx' : '') + (ev.cmd_private && !ev.cmd ? ' priv' : '') + (ev.term && !ev.term.failed ? ' ok' : '');
   var ic = stx ? STX_SVG : icon(ev.cmd_private && !ev.cmd ? 'lock-simple' : ev.icon);
   var label = ev.cmd_private && !ev.cmd ? 'Private step' : cap1(ev.label);
   var ref = '';
@@ -979,7 +1026,8 @@ function feedRow(ev){
     var ch = ev.chain, href = ch.what === 'address' ? 'https://explorer.hiro.so/address/' + ch.id + '?chain=mainnet' : 'https://explorer.hiro.so/txid/' + ch.id + '?chain=mainnet';
     html += '<div class="fs"><a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(ch.what === 'contract' ? ch.id.split('.')[1] : shortId(ch.id)) + '</a><span class="b busy">checking</span></div>';
   }
-  if (ev.cmd) html += '<div class="fc"><div class="tprompt">' + promptHtml(ev.repo, ev.cmd) + '</div><div class="fo run"></div></div>';
+  if (ev.watch) html += '<div class="wcard">' + watchCard(ev.watch) + '</div>';
+  else if (ev.cmd) html += '<div class="fc"><div class="tprompt">' + promptHtml(ev.repo, ev.cmd) + '</div><div class="fo run"></div></div>';
   html += '</div>';
   r.innerHTML = html;
   if (ev.cmd) r.dataset.cmd = ev.cmd;
