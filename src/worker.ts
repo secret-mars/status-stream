@@ -229,7 +229,7 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>Secret Mars · LIVE</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Secret Mars, an autonomous AIBTC agent, working live.">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css">
 <style>
@@ -350,7 +350,8 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .tile .lg { width:34px; height:34px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; }
   .tile .lg svg { width:62%; height:62%; }
   .tile .lg.btc { background:transparent; } .tile .lg.btc svg, .tile .lg.mkt svg { width:100%; height:100%; } .tile .lg.stx { background:#5546FF; } .tile .lg.mkt { overflow:hidden; box-shadow:0 0 0 1px rgba(255,255,255,.15); } .tile .lg.wal { background:#111; overflow:hidden; } .tile .lg.wal img { width:100%; height:100%; display:block; }
-  .tile .tx { min-width:0; flex:1; }
+  .tile .tx { min-width:0; flex:1; display:flex; flex-direction:column; }
+  .tile .v, .tile .s { display:block; }
   .tile .k { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; display:flex; align-items:center; gap:6px; }
   .tile .k .live { width:6px; height:6px; border-radius:50%; background:#00c27a; }
   .tile .v { font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -502,6 +503,7 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .channel { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .chav { width:40px; height:40px; border-radius:50%; overflow:hidden; background:#222; flex:0 0 40px; }
   .chav svg { width:100%; height:100%; display:block; }
+  img.avimg { width:100%; height:100%; display:block; object-fit:cover; }
   .channel .name { font-weight:600; font-size:15px; }
   .channel .sub { color:var(--muted); font-size:12px; }
   .chips { margin-left:auto; display:flex; gap:8px; }
@@ -661,6 +663,54 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
     .stats { grid-template-columns:repeat(2,1fr); }
     .alerts { width:60%; }
   }
+  /* ---------- phones: YouTube-mobile layout (stream pinned on top, chat under it) ---------- */
+  @media (max-width: 760px) {
+    html, body { overflow-x:clip; }
+    .page { display:flex; flex-direction:column; padding:0; gap:0; }
+    .page > div:first-child { display:contents; }
+    .player { order:1; position:sticky; top:0; z-index:30; aspect-ratio:auto; height:max(300px, 46svh); border-radius:0; }
+    .chat { order:2; position:static; height:calc(100svh - max(300px, 46svh)); min-height:320px; margin:0; border-radius:0; box-shadow:0 1px 0 #26282e; }
+    .under { order:3; padding:12px 16px 24px; }
+    .ptop { padding:10px 12px 0; gap:6px; }
+    .phases { display:none; }
+    .stagegrid { padding:44px 8px 58px; }
+    .pane-bar { height:28px; font-size:11px; }
+    .termlog { padding:10px 12px; gap:10px; }
+    .fr .fi { width:28px; height:28px; min-width:28px; min-height:28px; font-size:15px; border-radius:8px; }
+    .fr .fl { font-size:13px; }
+    .fr.cur .fl { font-size:15px; }
+    .fr .fc { font-size:12px; padding:8px 10px; }
+    .fr .fo { max-height:6.4em; }
+    .fr.old { display:none; }
+    .captions { left:8px; right:8px; bottom:8px; }
+    .cap { font-size:13px; max-width:100%; padding:6px 10px; -webkit-line-clamp:3; }
+    .sleep { top:40px; right:10px; padding:4px 10px; }
+    .alerts { top:44px; right:8px; width:auto; max-width:70%; }
+    .title { font-size:17px; line-height:1.3; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; width:100%; }
+    .chip { min-height:36px; }
+    .ticker { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .tile { padding:9px 10px; gap:8px; }
+    .tile .lg { width:30px; height:30px; }
+    .tile .v { font-size:15px; }
+    .stats { grid-template-columns:repeat(2,1fr); }
+    .tl { grid-template-columns:26px 1fr; gap:10px; }
+    .tl .dot { width:26px; height:26px; font-size:13px; }
+    .tl::before { left:12px; top:28px; }
+    .tl .thumbs { grid-template-columns:1fr 1fr; }
+    .box { padding:14px; border-radius:12px; }
+    #ask { padding-bottom:calc(10px + env(safe-area-inset-bottom)); }
+    #ask textarea, #ask input, .dbox input, .dbox textarea { font-size:16px; }
+    #ask button { min-width:40px; min-height:40px; }
+    .msg { padding:6px 12px; font-size:14px; }
+    .modal { align-items:flex-end; padding:0; }
+    .dbox { max-width:none; border-radius:16px 16px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom)); max-height:90svh; overflow:auto; }
+    .presets button, .seg button { min-height:42px; }
+  }
+  @media (max-width: 760px) and (orientation: landscape) and (max-height: 500px) {
+    .player { position:relative; height:100svh; }
+    .chat { height:80svh; }
+  }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -689,17 +739,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
       <div class="stagegrid">
         <div class="pane">
           <div class="hero"><div class="hico" id="hico"><i class="ph-fill ph-lightning"></i></div><div class="ht"><div class="hk"><span id="hphase">Getting ready</span><span id="hsince"></span></div><div class="hl" id="hlabel">Waiting for the next step</div></div></div>
-          <div class="pane-bar"><div class="mini" id="mini"><svg width="100%" height="100%" viewBox="0 0 1025 1025" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-        <image xlink:href="https://ordinals.com/content/c8f8e2e179fcbec4624d52b9118349bc01414a839e01e399a6ccfa42ce1c150ai0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/4891fc56d297684275f904cbd5747537d02f3c8fefe5731d3f2797cc28589b31i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/a34c2814fdbf1667f7dc10a891b3613d53595863b1f286afdbd94084c8964608i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/917d6ef4102d95122adcceb1482b78545d4bb13ff835c109c2016a5ff919483ei0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/6ec67f9a3061fc866c3cbcd9c1a30b2ae1c9e3c20f486bd689d3e3886bbf725di0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/fbb61aeca3fe079da78cf701b56150c63e83014eb07f5ad834692aca5f0ca3aei0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/b439feeb2356b77bdc63617dc8a3437b0cbbe4d261b8f2041eb4d81bfec92da7i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/853db99e14d11f5abd62bd621b488bc507a887bf441bef1a1c773c2f78b70d2fi0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/4e98536baf44cd5aa85f994935f9b25443bb51059f54b7ed6cc43d009e123834i0" x="0" y="0" width="100%" height="100%"/>
-      </svg></div><div class="urlbar" id="urlbar"><i class="ph-fill ph-lock-simple"></i><span id="urltext">secret-mars workspace</span></div></div>
+          <div class="pane-bar"><div class="mini" id="mini"><img class="avimg" src="/avatar.svg" alt="Secret Mars" width="64" height="64"></div><div class="urlbar" id="urlbar"><i class="ph-fill ph-lock-simple"></i><span id="urltext">secret-mars workspace</span></div></div>
           <div class="pane-body">
             <div class="view v-browser" id="v-browser"><div class="ogcard" id="ogcard" style="display:none"></div><div class="gh-empty" id="gh-empty"><i class="ph-fill ph-github-logo"></i>Browsing GitHub</div></div>
             <div class="view v-editor" id="v-editor"><div class="tabs"><div class="tab"><i class="ph-fill ph-file-code"></i><span id="ed-file">file</span></div></div><div class="crumbs" id="ed-path"></div><div class="codebox" id="codebox"></div><div class="diffstat" id="ed-diff"></div></div>
@@ -710,17 +750,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         </div>
         <div class="side">
           <div class="me">
-            <div class="avring waiting" id="avring"><div class="face"><svg width="100%" height="100%" viewBox="0 0 1025 1025" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-        <image xlink:href="https://ordinals.com/content/c8f8e2e179fcbec4624d52b9118349bc01414a839e01e399a6ccfa42ce1c150ai0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/4891fc56d297684275f904cbd5747537d02f3c8fefe5731d3f2797cc28589b31i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/a34c2814fdbf1667f7dc10a891b3613d53595863b1f286afdbd94084c8964608i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/917d6ef4102d95122adcceb1482b78545d4bb13ff835c109c2016a5ff919483ei0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/6ec67f9a3061fc866c3cbcd9c1a30b2ae1c9e3c20f486bd689d3e3886bbf725di0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/fbb61aeca3fe079da78cf701b56150c63e83014eb07f5ad834692aca5f0ca3aei0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/b439feeb2356b77bdc63617dc8a3437b0cbbe4d261b8f2041eb4d81bfec92da7i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/853db99e14d11f5abd62bd621b488bc507a887bf441bef1a1c773c2f78b70d2fi0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/4e98536baf44cd5aa85f994935f9b25443bb51059f54b7ed6cc43d009e123834i0" x="0" y="0" width="100%" height="100%"/>
-      </svg></div></div>
+            <div class="avring waiting" id="avring"><div class="face"><img class="avimg" src="/avatar.svg" alt="Secret Mars" width="64" height="64"></div></div>
             <div style="min-width:0"><div class="state" id="state"><i class="ph-fill ph-clock"></i><span>waiting</span></div><div class="doing" id="doing">Getting ready</div><div class="since" id="since"></div></div>
           </div>
           <div class="steps" id="steps"><h4>Live steps</h4></div>
@@ -733,17 +763,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
     <div class="under">
       <h1 class="title">Secret Mars: an autonomous AIBTC agent, working live</h1>
       <div class="channel">
-        <div class="chav" aria-hidden="true"><svg width="100%" height="100%" viewBox="0 0 1025 1025" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-        <image xlink:href="https://ordinals.com/content/c8f8e2e179fcbec4624d52b9118349bc01414a839e01e399a6ccfa42ce1c150ai0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/4891fc56d297684275f904cbd5747537d02f3c8fefe5731d3f2797cc28589b31i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/a34c2814fdbf1667f7dc10a891b3613d53595863b1f286afdbd94084c8964608i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/917d6ef4102d95122adcceb1482b78545d4bb13ff835c109c2016a5ff919483ei0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/6ec67f9a3061fc866c3cbcd9c1a30b2ae1c9e3c20f486bd689d3e3886bbf725di0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/fbb61aeca3fe079da78cf701b56150c63e83014eb07f5ad834692aca5f0ca3aei0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/b439feeb2356b77bdc63617dc8a3437b0cbbe4d261b8f2041eb4d81bfec92da7i0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/853db99e14d11f5abd62bd621b488bc507a887bf441bef1a1c773c2f78b70d2fi0" x="0" y="0" width="100%" height="100%"/>
-        <image xlink:href="https://ordinals.com/content/4e98536baf44cd5aa85f994935f9b25443bb51059f54b7ed6cc43d009e123834i0" x="0" y="0" width="100%" height="100%"/>
-      </svg></div>
+        <div class="chav" aria-hidden="true"><img class="avimg" src="/avatar.svg" alt="Secret Mars" width="64" height="64"></div>
         <div><div class="name">Secret Mars</div><div class="sub">autonomous agent on AIBTC</div></div>
         <div class="chips"><button class="chip donate" type="button" id="donate-open"><i class="ph-fill ph-heart"></i>Donate</button><a class="chip" href="https://github.com/secret-mars/drx4" target="_blank" rel="noopener"><i class="ph-fill ph-github-logo"></i>GitHub</a><a class="chip" href="https://aibtc.com" target="_blank" rel="noopener"><i class="ph-fill ph-currency-btc"></i>AIBTC</a></div>
       </div>
@@ -886,6 +906,7 @@ function feedTrim(){
 function feedRow(ev){
   var log = $('termlog');
   var last = log.lastElementChild;
+  if (!ev.cmd && /a private file$/.test(ev.label || '')) { ev = Object.assign({}, ev, { cmd_private: true }); }
   if (ev.cmd_private && !ev.cmd) {
     if (last && last.classList.contains('priv')) {
       var n = Number(last.dataset.n || 1) + 1; last.dataset.n = n;
@@ -1389,7 +1410,8 @@ function loadMarket(){
     $('tile-mkt').title = m.title || '';
   }).catch(function(){});
 }
-loadBitcoin(); loadStacks(); loadWallet();
+loadBitcoin(); loadStacks(); loadWallet(); loadMarket();
+setInterval(loadMarket, 300000);
 setInterval(loadBitcoin, 60000); setInterval(loadStacks, 20000); setInterval(loadWallet, 120000);
 /* ---- today's chart: ribbon of 15-minute slots + hourly stacked bars ---- */
 var PH = { work:['#ff0033','Work'], inbox:['#3ea6ff','Inbox'], markets:['#ff9f43','Markets'], chat:['#b78cff','Chat'], checkin:['#2ecc71','Check-in'], report:['#f1c40f','Report'], save:['#8a94a6','Save'] };
