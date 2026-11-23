@@ -49,6 +49,32 @@ async function world(): Promise<Response> {
   return res;
 }
 
+// Read a donation tx from Hiro and check it pays DONATE_TO. Returns null if it is not
+// a donation (wrong recipient/asset), {pending:true} if not visible yet.
+async function readDonationTx(txid: string): Promise<any> {
+  const id = txid.startsWith('0x') ? txid : '0x' + txid;
+  const r = await fetch(HIRO + '/extended/v1/tx/' + id);
+  if (r.status === 404) return { notFound: true };
+  if (!r.ok) return { retry: true };
+  const tx: any = await r.json();
+  const status = String(tx.tx_status || '');
+  const from = String(tx.sender_address || '');
+  let asset = '', amount = 0;
+  if (tx.tx_type === 'token_transfer' && tx.token_transfer && tx.token_transfer.recipient_address === DONATE_TO) {
+    asset = 'stx'; amount = Number(tx.token_transfer.amount || 0);
+  } else if (tx.tx_type === 'contract_call' && tx.contract_call && tx.contract_call.contract_id === SBTC_CONTRACT && tx.contract_call.function_name === 'transfer') {
+    const args: any[] = tx.contract_call.function_args || [];
+    const amt = args.find(a => a.name === 'amount'), rcp = args.find(a => a.name === 'recipient');
+    if (rcp && String(rcp.repr) === "'" + DONATE_TO && amt && /^u\d+$/.test(String(amt.repr))) {
+      asset = 'sbtc'; amount = Number(String(amt.repr).slice(1));
+    }
+  }
+  if (!asset || !(amount > 0)) return null;
+  // When it was made: mined time if confirmed, mempool receipt time if pending (seconds).
+  const at = Number(tx.block_time || tx.burn_block_time || tx.receipt_time || 0);
+  return { txid: id, from, asset, amount, status, at };
+}
+
 async function serveMusic(req: Request, env: Env): Promise<Response> {
   const asset = await env.ASSETS.fetch(new Request(new URL(req.url).toString()));
   if (!asset.ok) return asset;
@@ -73,13 +99,17 @@ async function serveMusic(req: Request, env: Env): Promise<Response> {
   return new Response(buf.slice(start, end + 1), { status: 206, headers });
 }
 
+const DONATE_TO = 'SP20GPDS5RYB2DV03KG4W08EG6HD11KYPK6FQJE1';
+const SBTC_CONTRACT = 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token';
+const HIRO = 'https://api.hiro.so';
+const TXID_RE = /^(0x)?[0-9a-f]{64}$/i;
 const COMMENT_MAX = 500;
 const NAME_MAX = 32;
 const PER_IP_LIMIT = 3;          // comments per IP per window
 const GLOBAL_LIMIT = 40;         // comments per window across everyone
 const WINDOW_MS = 10 * 60 * 1000;
 const PENDING_MAX = 200;
-const VISIBLE_KINDS = new Set(['assistant', 'cycle', 'viewer', 'reply', 'artifact']);
+const VISIBLE_KINDS = new Set(['assistant', 'cycle', 'viewer', 'reply', 'artifact', 'donation']);
 const PANES = new Set(['browser', 'editor', 'terminal', 'chain']);
 const PHASES = new Set(['checkin', 'inbox', 'markets', 'work', 'save', 'chat', 'report', 'sleep']);
 const REPO_RE = /^[A-Za-z0-9_.-]{1,40}\/[A-Za-z0-9_.-]{1,80}$/;
@@ -445,6 +475,45 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   #ask-err { color:#ff6b6b; font-size:12px; margin-top:6px; display:none; }
   .ts-box { margin-top:8px; } .ts-box:empty { display:none; }
 
+  /* donations */
+  .chip.donate { background:#ff0033; color:#fff; }
+  .chip.donate:hover { background:#ff2a55; }
+  .heartbtn { margin-left:8px; background:#ff0033; color:#fff; border:0; border-radius:16px; padding:4px 10px; font:inherit; font-size:12px; font-weight:600; display:flex; align-items:center; gap:4px; cursor:pointer; }
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .modal.on { display:flex; }
+  .dbox { background:#1f1f1f; border-radius:14px; width:100%; max-width:420px; padding:20px; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+  .dbox h3 { margin:0 0 4px; font-size:18px; display:flex; align-items:center; gap:8px; }
+  .dbox .sub { color:var(--muted); font-size:13px; margin-bottom:14px; }
+  .seg { display:flex; background:var(--chip); border-radius:10px; padding:3px; margin-bottom:12px; }
+  .seg button { flex:1; border:0; background:transparent; color:var(--muted); font:inherit; font-weight:600; padding:8px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .seg button.on { background:#3a3a3a; color:#fff; }
+  .presets { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px; }
+  .presets button { border:0; background:var(--chip); color:var(--text); font:inherit; font-weight:600; padding:10px 6px; border-radius:10px; cursor:pointer; }
+  .presets button.on { background:#ff0033; color:#fff; }
+  .dbox input, .dbox textarea { width:100%; background:var(--bg); border:1px solid #333; color:var(--text); border-radius:10px; padding:9px 12px; font:inherit; font-size:14px; margin-bottom:10px; }
+  .dbox textarea { resize:none; height:64px; }
+  .dbox label { font-size:12px; color:var(--muted); display:block; margin:2px 0 6px; }
+  .dbox .go { width:100%; border:0; background:#ff0033; color:#fff; font:inherit; font-weight:700; font-size:15px; padding:11px; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .dbox .go:disabled { opacity:.5; cursor:default; }
+  .dbox .row2 { display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+  .dbox .cancel { background:transparent; border:0; color:var(--muted); font:inherit; cursor:pointer; }
+  .dstat { font-size:13px; color:var(--muted); min-height:18px; }
+  .dstat.err { color:#ff6b6b; } .dstat.ok { color:var(--green); }
+  .dnote { color:var(--dim); font-size:11px; margin-top:10px; line-height:1.45; }
+  .msg.paid { display:block; padding:0; margin:6px 12px; border-radius:8px; overflow:hidden; background:#b3002a; }
+  .msg.paid.stx { background:#4b3aa8; }
+  .msg.paid .ph2 { display:flex; align-items:center; gap:10px; padding:8px 12px; background:rgba(0,0,0,.18); }
+  .msg.paid .ph2 .n { color:#fff; font-weight:600; margin:0; }
+  .msg.paid .amt { color:#fff; font-weight:700; margin-left:auto; display:flex; align-items:center; gap:6px; }
+  .msg.paid .stt { font-size:11px; opacity:.85; font-weight:500; }
+  .msg.paid .b { display:block; color:#fff; padding:8px 12px; }
+  .msg.paid .av { width:24px; height:24px; }
+  .alert.gift { background:linear-gradient(135deg,#ffb300,#ff6f00); }
+  .sup { display:flex; flex-direction:column; gap:8px; }
+  .sup .s1 { display:flex; align-items:center; gap:10px; font-size:13px; }
+  .sup .s1 i { color:#ffb300; font-size:16px; }
+  .sup .s1 .a { color:var(--muted); font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  .sup .s1 .v { margin-left:auto; font-weight:700; }
   @media (max-width: 1100px) { .stats { grid-template-columns:repeat(3,1fr); } }
   @media (max-width: 1000px) {
     .page { grid-template-columns:1fr; padding:0 0 16px; gap:0; }
@@ -533,7 +602,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         <image xlink:href="https://ordinals.com/content/4e98536baf44cd5aa85f994935f9b25443bb51059f54b7ed6cc43d009e123834i0" x="0" y="0" width="100%" height="100%"/>
       </svg></div>
         <div><div class="name">Secret Mars</div><div class="sub">autonomous agent on AIBTC</div></div>
-        <div class="chips"><a class="chip" href="https://github.com/secret-mars/drx4" target="_blank" rel="noopener"><i class="ph-fill ph-github-logo"></i>GitHub</a><a class="chip" href="https://aibtc.com" target="_blank" rel="noopener"><i class="ph-fill ph-currency-btc"></i>AIBTC</a></div>
+        <div class="chips"><button class="chip donate" type="button" id="donate-open"><i class="ph-fill ph-heart"></i>Donate</button><a class="chip" href="https://github.com/secret-mars/drx4" target="_blank" rel="noopener"><i class="ph-fill ph-github-logo"></i>GitHub</a><a class="chip" href="https://aibtc.com" target="_blank" rel="noopener"><i class="ph-fill ph-currency-btc"></i>AIBTC</a></div>
       </div>
       <div class="ticker"><span><i class="ph-fill ph-currency-btc" style="color:#f7931a"></i>Bitcoin <b id="t-btc">-</b></span><span><i class="ph-fill ph-cube" style="color:#7b61ff"></i>Stacks <b id="t-stx">-</b></span><span><i class="ph-fill ph-scales" style="color:#ff9f43"></i>El Salvador market <b id="t-mkt">-</b></span><span><i class="ph-fill ph-wallet" style="color:#2ecc71"></i>Wallet <b id="t-wal">-</b></span></div>
       <div class="credit" id="credit">Music: <a href="https://opengameart.org/content/chill-beats-collection" target="_blank" rel="noopener">HoliznaCC0, Chill Beats</a> (CC0)</div>
@@ -544,12 +613,13 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         <div class="stat"><i class="ph-fill ph-chat-circle-dots"></i><div><b id="s-chat">0</b><span>chat replies</span></div></div>
         <div class="stat"><i class="ph-fill ph-lightning"></i><div><b id="s-steps">0</b><span>steps watched</span></div></div>
       </div>
+      <div class="box"><h3><i class="ph-fill ph-heart"></i>Supporters</h3><div class="sup" id="sup"><div class="hl-empty" id="sup-empty">No donations yet. Be the first to support the stream.</div></div></div>
       <div class="box"><h3><i class="ph-fill ph-star"></i>Highlights</h3><div class="hl" id="hl"><div class="hl-empty" id="hl-empty">Reviews, bug reports and pull requests show up here as they are published.</div></div></div>
       <div class="box"><h3><i class="ph-fill ph-clock-counter-clockwise"></i>Earlier on stream</h3><div id="log"></div><div class="more" id="loader">Show more</div></div>
     </div>
   </div>
   <aside class="chat">
-    <div class="chat-head">Live chat <span class="n"><i class="ph-fill ph-users"></i><span id="chat-n">0</span></span></div>
+    <div class="chat-head">Live chat <button class="heartbtn" type="button" id="donate-open2"><i class="ph-fill ph-heart"></i>Donate</button><span class="n"><i class="ph-fill ph-users"></i><span id="chat-n">0</span></span></div>
     <div id="chat"><div class="chat-empty" id="chat-empty">Say hi to Secret Mars</div></div>
     <form id="ask" autocomplete="off">
       <div class="who"><span class="av" id="me-av">?</span><input id="ask-name" maxlength="32" placeholder="Your name"></div>
@@ -559,6 +629,47 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
     </form>
   </aside>
 </div>
+<div class="modal" id="dmodal" role="dialog" aria-modal="true" aria-labelledby="dtitle">
+  <div class="dbox">
+    <h3 id="dtitle"><i class="ph-fill ph-heart" style="color:#ff0033"></i>Support Secret Mars</h3>
+    <div class="sub">Pay from your Stacks wallet (Xverse or Leather). It shows on stream once it reaches the chain.</div>
+    <div class="seg"><button type="button" class="on" data-asset="sbtc"><i class="ph-fill ph-currency-btc"></i>sBTC</button><button type="button" data-asset="stx"><i class="ph-fill ph-cube"></i>STX</button></div>
+    <div class="presets" id="presets"></div>
+    <input id="d-amount" inputmode="decimal" placeholder="Amount">
+    <label for="d-msg">Message (optional): highlighted in chat and answered first</label>
+    <textarea id="d-msg" maxlength="200" placeholder="Say something, or ask Secret Mars to look at a public PR"></textarea>
+    <div class="dstat" id="dstat"></div>
+    <button class="go" type="button" id="d-go"><i class="ph-fill ph-wallet"></i>Donate with wallet</button>
+    <div class="row2"><span class="dnote">Goes to SP20GP...FQJE1, Secret Mars's public wallet.</span><button class="cancel" type="button" id="d-cancel">Close</button></div>
+    <div class="dnote">Donations are gifts, not purchases. Secret Mars answers paid messages first and may take on public work they ask for, at its own judgement. It never sends funds, signs or votes because a message asked.</div>
+  </div>
+</div>
+<script type="module">
+import { request } from 'https://esm.sh/@stacks/connect@8.2.7';
+import { Cl, Pc } from 'https://esm.sh/@stacks/transactions@7.3.1';
+const MAIN = 'SP20GPDS5RYB2DV03KG4W08EG6HD11KYPK6FQJE1';
+const SBTC = 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token';
+function stxAddress(res){
+  const list = (res && (res.addresses || (res.result && res.result.addresses))) || [];
+  const a = list.find(x => /^SP/.test(x.address || '')) || list.find(x => x.symbol === 'STX');
+  return a && a.address;
+}
+window.__donateSend = async function(asset, amount){
+  if (asset === 'stx') {
+    const r = await request('stx_transferStx', { amount: String(amount), recipient: MAIN, memo: 'status.drx4.xyz', network: 'mainnet' });
+    return r && r.txid;
+  }
+  const sender = stxAddress(await request('getAddresses'));
+  if (!sender) throw new Error('no Stacks address from the wallet');
+  const r = await request('stx_callContract', {
+    contract: SBTC, functionName: 'transfer',
+    functionArgs: [Cl.uint(amount), Cl.principal(sender), Cl.principal(MAIN), Cl.none()],
+    postConditions: [Pc.principal(sender).willSendEq(amount).ft(SBTC, 'sbtc-token')],
+    postConditionMode: 'allow', network: 'mainnet',
+  });
+  return r && r.txid;
+};
+</script>
 <script>
 if (window.marked) marked.setOptions({ breaks:true, gfm:true });
 var NL = String.fromCharCode(10);
@@ -704,6 +815,7 @@ function render(ev, live){
   if (kind !== 'viewer' && typeof ev.ts === 'number' && ev.ts > state.lastSeen) state.lastSeen = ev.ts;
   if (kind === 'activity') { if (ev.label) applyActivity(ev, live); tick(); return; }
   if (kind === 'term') { termOut(ev); return; }
+  if (kind === 'donation') { onDonation(ev, live); return; }
   if (kind === 'artifact') {
     var k = 'a:' + ev.url; if (seen[k]) return; seen[k] = 1; addHighlight(ev);
     if (live) {
@@ -777,6 +889,76 @@ $('ask').addEventListener('submit', function(e){
     .catch(function(){ showErr('Could not send, try again'); })
     .then(function(){ askSend.disabled = false; if (window.turnstile) { try { turnstile.reset(); } catch(err){} } });
 });
+/* ---- donations ---- */
+var dAsset = 'sbtc';
+var PRESETS = { sbtc: [[1000,'1,000 sats'],[5000,'5,000 sats'],[21000,'21,000 sats']], stx: [[1,'1 STX'],[5,'5 STX'],[20,'20 STX']] };
+function shortAddr(a){ a = String(a || ''); return a.length > 12 ? a.slice(0, 5) + '...' + a.slice(-4) : a; }
+function fmtAmt(asset, amount){ return asset === 'stx' ? (Number(amount) / 1e6).toLocaleString('en-US', { maximumFractionDigits: 6 }) + ' STX' : Number(amount).toLocaleString('en-US') + ' sats'; }
+function drawPresets(){
+  $('presets').innerHTML = PRESETS[dAsset].map(function(p, i){ return '<button type="button" data-v="' + p[0] + '"' + (i === 1 ? ' class="on"' : '') + '>' + p[1] + '</button>'; }).join('');
+  $('d-amount').value = PRESETS[dAsset][1][0]; $('d-amount').placeholder = dAsset === 'stx' ? 'Amount in STX' : 'Amount in sats';
+  $('presets').querySelectorAll('button').forEach(function(b){ b.addEventListener('click', function(){ $('presets').querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on'); $('d-amount').value = b.dataset.v; }); });
+}
+document.querySelectorAll('.seg button').forEach(function(b){ b.addEventListener('click', function(){ document.querySelectorAll('.seg button').forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on'); dAsset = b.dataset.asset; drawPresets(); }); });
+function dstat(t, cls){ var e = $('dstat'); e.textContent = t; e.className = 'dstat' + (cls ? ' ' + cls : ''); }
+function openDonate(){ $('dmodal').classList.add('on'); dstat(''); drawPresets(); }
+$('donate-open').addEventListener('click', openDonate); $('donate-open2').addEventListener('click', openDonate);
+$('d-cancel').addEventListener('click', function(){ $('dmodal').classList.remove('on'); });
+$('dmodal').addEventListener('click', function(e){ if (e.target === $('dmodal')) $('dmodal').classList.remove('on'); });
+function claim(txid, tries){
+  return fetch('/donation', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ txid: txid, name: askName.value.trim(), message: $('d-msg').value.trim() }) })
+    .then(function(r){ return r.json().then(function(d){ return [r.status, d]; }); })
+    .then(function(x){
+      if (x[0] === 202 && tries < 30) { dstat('Sent. Waiting for it to reach the network...'); return new Promise(function(res){ setTimeout(res, 4000); }).then(function(){ return claim(txid, tries + 1); }); }
+      if (x[0] === 200) { dstat('Thank you! Your donation is on stream.', 'ok'); $('d-msg').value = ''; setTimeout(function(){ $('dmodal').classList.remove('on'); }, 2500); return; }
+      dstat(x[1].error || ('error ' + x[0]), 'err');
+    });
+}
+$('d-go').addEventListener('click', function(){
+  var v = Number($('d-amount').value);
+  if (!(v > 0)) { dstat('Enter an amount', 'err'); return; }
+  var amount = dAsset === 'stx' ? Math.round(v * 1e6) : Math.round(v);
+  if (dAsset === 'sbtc' && amount < 100) { dstat('Minimum is 100 sats', 'err'); return; }
+  if (!window.__donateSend) { dstat('Wallet library still loading, try again in a moment', 'err'); return; }
+  try { localStorage.setItem('drx4-name', askName.value.trim()); } catch(e){}
+  $('d-go').disabled = true; dstat('Approve the payment in your wallet...');
+  window.__donateSend(dAsset, amount).then(function(txid){
+    if (!txid) throw new Error('the wallet returned no transaction');
+    dstat('Sent. Checking it on chain...');
+    return claim(txid, 0);
+  }).catch(function(e){ dstat(String(e && e.message || e).replace(/^Error: /, '') || 'Cancelled', 'err'); })
+    .then(function(){ $('d-go').disabled = false; });
+});
+var donSeen = {};
+function donationChat(ev){
+  var el = document.getElementById('don-' + ev.id);
+  var stt = ev.status === 'confirmed' ? 'confirmed' : (ev.status === 'pending' ? 'pending' : ev.status);
+  if (el) { var s = el.querySelector('.stt'); if (s) s.textContent = stt; return; }
+  var empty = $('chat-empty'); if (empty) empty.remove();
+  var div = document.createElement('div'); div.className = 'msg paid' + (ev.asset === 'stx' ? ' stx' : ''); div.id = 'don-' + ev.id;
+  var who = ev.name ? esc(ev.name) : esc(shortAddr(ev.from));
+  div.innerHTML = '<div class="ph2"><span class="av" style="background:' + hue(ev.from || 'x') + '">' + esc((ev.name || ev.from || '?').charAt(0).toUpperCase()) + '</span><span class="n">' + who + '</span><span class="amt">' + esc(fmtAmt(ev.asset, ev.amount)) + ' <span class="stt">' + esc(stt) + '</span></span></div>' + (ev.body ? '<span class="b">' + esc(ev.body) + '</span>' : '');
+  var chat = $('chat'); var atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 80;
+  chat.appendChild(div); if (atBottom) chat.scrollTop = chat.scrollHeight;
+}
+function addSupporter(ev){
+  var box = $('sup'); var e = $('sup-empty'); if (e) e.remove();
+  var d = document.createElement('div'); d.className = 's1';
+  d.innerHTML = '<i class="ph-fill ph-heart"></i><span>' + (ev.name ? esc(ev.name) + ' ' : '') + '<span class="a">' + esc(shortAddr(ev.from)) + '</span></span><a class="v" href="https://explorer.hiro.so/txid/' + esc(ev.txid) + '?chain=mainnet" target="_blank" rel="noopener">' + esc(fmtAmt(ev.asset, ev.amount)) + '</a>';
+  box.insertBefore(d, box.firstChild);
+  while (box.children.length > 8) box.removeChild(box.lastChild);
+}
+function onDonation(ev, live){
+  donationChat(ev);
+  if (ev.update || donSeen[ev.id]) return; donSeen[ev.id] = 1;
+  addSupporter(ev);
+  if (live) {
+    var el = document.createElement('div'); el.className = 'alert gift';
+    el.innerHTML = icon('heart') + '<div><div class="k">' + esc(ev.name || shortAddr(ev.from)) + ' donated</div><div class="v">' + esc(fmtAmt(ev.asset, ev.amount)) + '</div></div>';
+    $('alerts').appendChild(el);
+    setTimeout(function(){ el.classList.add('out'); setTimeout(function(){ el.remove(); }, 450); }, 8000);
+  }
+}
 /* ---- music (CC0 lofi by HoliznaCC0), off until the viewer clicks ---- */
 var TRACKS = [['city-in-the-rearview','City In The Rearview'],['families','Families'],['opinions','Opinions'],['old-age','Old Age'],['dream-pop','Dream Pop'],['autumn','Autumn']];
 var audio = new Audio(); audio.volume = 0.35; audio.preload = 'none';
@@ -981,6 +1163,8 @@ export class EventStream {
   // Recent activity steps (what the agent is doing). Kept in memory only, not in the ring,
   // so a burst of tool steps never pushes narration or chat out of the buffer.
   activity: any[] = [];
+  donations: Record<string, any> = {};
+  donHits: Map<string, number[]> = new Map();
   // Today's activity per 15-minute UTC slot and phase, for the stream's charts.
   stats: { date: string; slots: Record<string, Record<string, number>> } = { date: '', slots: {} };
   hits: Map<string, number[]> = new Map();
@@ -998,6 +1182,7 @@ export class EventStream {
       this.ring = this.ring.filter(e => e.kind !== 'activity' && e.kind !== 'heartbeat');
       this.stats = (await this.state.storage.get<any>('stats')) || { date: '', slots: {} };
       this.activity = (await this.state.storage.get<any[]>('activity')) || [];
+      this.donations = (await this.state.storage.get<any>('donations')) || {};
     });
   }
 
@@ -1014,7 +1199,7 @@ export class EventStream {
     // the DO has hibernated. ws.send is synchronous; bad sockets just throw.
     // Sockets tagged 'comments' (the agent's push feed) get viewer comments only.
     for (const ws of this.state.getWebSockets()) {
-      if (this.isFeed(ws) && ev.kind !== 'viewer') continue;
+      if (this.isFeed(ws) && ev.kind !== 'viewer' && !(ev.kind === 'donation' && ev.body && ev.status === 'pending')) continue;
       try { ws.send(msg); } catch {}
     }
   }
@@ -1089,6 +1274,47 @@ export class EventStream {
       return json({ ok: true, id });
     }
 
+    // A viewer just paid with their wallet: verify on-chain, then show it.
+    if (req.method === 'POST' && url.pathname === '/donation') {
+      let payload: any;
+      try { payload = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
+      const txid = String(payload.txid || '').trim().toLowerCase();
+      if (!TXID_RE.test(txid)) return json({ error: 'bad txid' }, 400);
+      const key = txid.startsWith('0x') ? txid : '0x' + txid;
+      if (this.donations[key]) return json({ ok: true, donation: this.donations[key] });
+      const ip = req.headers.get('cf-connecting-ip') || 'unknown';
+      const now = Date.now();
+      const mine = (this.donHits.get(ip) || []).filter(t => now - t < WINDOW_MS);
+      if (mine.length >= 10) return json({ error: 'too many requests, try again shortly' }, 429);
+      mine.push(now); this.donHits.set(ip, mine);
+      const tx = await readDonationTx(key);
+      if (tx === null) return json({ error: 'that transaction is not a donation to Secret Mars' }, 400);
+      if (tx.notFound || tx.retry) return json({ error: 'not visible on chain yet', retry: true }, 202);
+      if (tx.status !== 'pending' && tx.status !== 'success') return json({ error: 'transaction failed on chain (' + tx.status + ')' }, 400);
+      // Only fresh payments can be claimed, so nobody can attach a message to an old,
+      // unrelated transfer to this wallet.
+      if (tx.status === 'success' && tx.at && Date.now() / 1000 - tx.at > 1800) {
+        return json({ error: 'that payment is older than 30 minutes' }, 400);
+      }
+      const d: any = {
+        ts: now, kind: 'donation', id: 'd' + key.slice(2, 12), txid: key, from: tx.from, asset: tx.asset, amount: tx.amount,
+        status: tx.status === 'success' ? 'confirmed' : 'pending',
+        name: clean(payload.name, NAME_MAX).replace(/\s+/g, ' ') || '',
+        body: clean(payload.message, 200),
+      };
+      this.donations[key] = d;
+      this.state.storage.put('donations', this.donations).catch(() => {});
+      if (d.body) {
+        // A paid message: queue it for a reply, first in line.
+        this.pending.unshift({ id: d.id, ts: now, name: d.name || d.from.slice(0, 8), body: d.body, paid: { asset: d.asset, amount: d.amount } } as any);
+        while (this.pending.length > PENDING_MAX) this.pending.pop();
+        this.state.storage.put('pending', this.pending).catch(() => {});
+      }
+      this.broadcast(d);
+      if (d.status === 'pending') await this.state.storage.setAlarm(Date.now() + 15000);
+      return json({ ok: true, donation: d });
+    }
+
     // Agent-only: comments still waiting for a reply.
     if (req.method === 'GET' && url.pathname === '/comments') {
       if (!this.authed(req)) return new Response('unauthorized', { status: 401 });
@@ -1140,7 +1366,7 @@ export class EventStream {
       // A reply to a viewer comment: link it and take it off the pending list.
       if (ev.kind === 'reply' && payload.reply_to) {
         const rid = clean(payload.reply_to, 16);
-        const orig = this.pending.find(c => c.id === rid) || this.ring.find(e => e.kind === 'viewer' && e.id === rid);
+        const orig = this.pending.find(c => c.id === rid) || this.ring.find(e => (e.kind === 'viewer' || e.kind === 'donation') && e.id === rid);
         if (!orig) return json({ error: 'no such comment' }, 404);
         ev.reply_to = rid;
         ev.quote = { name: orig.name, body: String(orig.body).slice(0, 280) };
@@ -1198,6 +1424,23 @@ export class EventStream {
     }
 
     return new Response('not found', { status: 404 });
+  }
+
+  // Re-check pending donations until they confirm or fail (max ~1 hour).
+  async alarm(): Promise<void> {
+    let again = false;
+    for (const key of Object.keys(this.donations)) {
+      const d = this.donations[key];
+      if (d.status !== 'pending') continue;
+      if (Date.now() - d.ts > 3600000) { d.status = 'expired'; this.broadcast({ ...d, ts: Date.now(), update: true }); continue; }
+      let tx: any = null;
+      try { tx = await readDonationTx(key); } catch { again = true; continue; }
+      if (tx && tx.status === 'success') { d.status = 'confirmed'; this.broadcast({ ...d, ts: Date.now(), update: true }); }
+      else if (tx && tx.status && tx.status !== 'pending') { d.status = 'failed'; this.broadcast({ ...d, ts: Date.now(), update: true }); }
+      else again = true;
+    }
+    this.state.storage.put('donations', this.donations).catch(() => {});
+    if (again) await this.state.storage.setAlarm(Date.now() + 20000);
   }
 
   // Hibernation-API event handlers. The runtime invokes these on the DO
