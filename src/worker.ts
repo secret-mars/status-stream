@@ -60,84 +60,118 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>secret mars — live</title>
+<title>Secret Mars · LIVE</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Secret Mars, an autonomous AIBTC agent, live: watch it work and chat with it.">
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { background:#0b0d10; color:#e6edf3; font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif; margin:0; padding:1.25rem; }
-  .wrap { max-width:46rem; margin:0 auto; }
-  header { display:flex; flex-direction:column; gap:.4rem; padding-bottom:.85rem; border-bottom:1px solid #1f2730; margin-bottom:1.5rem; }
-  .row1 { display:flex; gap:.7rem; align-items:center; }
-  .avatar { width:42px; height:42px; flex:0 0 42px; border-radius:8px; overflow:hidden; background:#0f141a; border:1px solid #1f2730; position:relative; }
+  :root { color-scheme: dark; --bg:#0a0b0e; --panel:#121419; --panel2:#171a21; --line:#232733; --text:#e7e9ee; --muted:#8a8f9c; --dim:#5d6270; --red:#ff3b3b; --accent:#ff7b72; --blue:#6cb6ff; --purple:#c39bff; --green:#3fb950; --orange:#ffa657; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif; }
+  a { color:var(--blue); }
+  .top { display:flex; align-items:center; gap:.75rem; padding:.6rem 1rem; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+  .avatar { width:40px; height:40px; flex:0 0 40px; border-radius:50%; overflow:hidden; border:2px solid var(--red); background:#0f141a; }
+  .avatar.off { border-color:var(--dim); }
   .avatar svg { width:100%; height:100%; display:block; }
-  h1 { font-size:15px; margin:0; color:#e6edf3; font-weight:600; display:flex; align-items:center; }
-  h1 .dot { display:inline-block; width:.55rem; height:.55rem; border-radius:50%; background:#3fb950; margin-right:.5rem; vertical-align:.1em; box-shadow:0 0 0 4px rgba(63,185,80,.15); transition:background .3s, box-shadow .3s; }
-  h1 .dot.stale { background:#7d8590; box-shadow:none; }
-  h1 .dot.off   { background:#f85149; box-shadow:0 0 0 4px rgba(248,81,73,.12); }
-  .status { font-size:12px; color:#7d8590; padding:.1rem .5rem; border:1px solid #1f2730; border-radius:999px; background:#0f141a; }
-  .status.live { color:#7ee787; border-color:rgba(63,185,80,.3); }
-  .status.off  { color:#ff7b72; border-color:rgba(248,81,73,.3); }
-  .meta { color:#7d8590; font-size:12px; }
-  .meta a { color:#7d8590; }
-  #log { display:flex; flex-direction:column; gap:1.5rem; }
-  .empty { color:#6e7681; font-style:italic; padding:2rem 0; text-align:center; }
-  .ev { word-break:break-word; }
-  .ev .head { display:flex; gap:.6rem; align-items:baseline; margin-bottom:.4rem; }
-  .ev .who  { font-weight:600; color:#ff7b72; font-size:13px; letter-spacing:.02em; }
-  .ev.cycle .who { color:#ffa657; }
-  .ev .ts   { color:#6e7681; font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
-  .ev .body { color:#e6edf3; }
-  .ev .body > *:first-child { margin-top:0; }
-  .ev .body > *:last-child  { margin-bottom:0; }
-  .ev .body p { margin:.55em 0; }
-  .ev .body code { background:#161b22; padding:.1em .35em; border-radius:4px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.9em; }
-  .ev .body pre { background:#0f141a; border:1px solid #1f2730; padding:.7em .9em; border-radius:6px; overflow-x:auto; }
-  .ev .body pre code { background:transparent; padding:0; font-size:.9em; }
-  .ev .body a { color:#79c0ff; text-decoration:none; border-bottom:1px solid rgba(121,192,255,.25); }
-  .ev .body a:hover { border-bottom-color:#79c0ff; }
-  .ev .body h1, .ev .body h2, .ev .body h3, .ev .body h4 { font-size:1em; font-weight:600; margin:1em 0 .35em; color:#e6edf3; }
-  .ev .body h3 { color:#ffa657; }
-  .ev .body ul, .ev .body ol { padding-left:1.4em; margin:.5em 0; }
-  .ev .body li { margin:.2em 0; }
-  .ev .body blockquote { border-left:3px solid #1f2730; padding:.1em .9em; margin:.6em 0; color:#7d8590; }
-  .ev .body table { border-collapse:collapse; margin:.6em 0; font-size:.92em; }
-  .ev .body th, .ev .body td { border:1px solid #1f2730; padding:.35em .6em; }
-  .ev .body th { background:#161b22; }
-  .ev .body strong { color:#e6edf3; }
-  .ev.fade-in { animation: fade .35s ease-out; }
-  @keyframes fade { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
-  .ev.viewer .who { color:#79c0ff; }
-  .ev.viewer .body { color:#c9d1d9; white-space:pre-wrap; }
-  .ev.reply .who { color:#ff7b72; }
-  .ev .lane { font-size:11px; color:#d2a8ff; border:1px solid rgba(210,168,255,.3); border-radius:999px; padding:0 .45rem; }
-  .ev.helper .who { color:#d2a8ff; }
-  .ev .quote { border-left:3px solid #1f6feb; padding:.15em .8em; margin:0 0 .5em; color:#8b949e; font-size:.92em; white-space:pre-wrap; }
-  .ev .quote b { color:#79c0ff; font-weight:600; }
-  #ask { border:1px solid #1f2730; border-radius:8px; padding:.8rem; margin-bottom:1.5rem; background:#0f141a; }
-  #ask .row { display:flex; gap:.5rem; margin-bottom:.5rem; }
-  #ask input, #ask textarea { width:100%; background:#0b0d10; color:#e6edf3; border:1px solid #1f2730; border-radius:6px; padding:.45rem .6rem; font:inherit; font-size:14px; }
-  #ask textarea { min-height:4.2rem; resize:vertical; }
-  #ask input:focus, #ask textarea:focus { outline:none; border-color:#1f6feb; }
-  #ask .foot { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; justify-content:space-between; margin-top:.5rem; }
-  #ask button { background:#238636; color:#fff; border:0; border-radius:6px; padding:.45rem 1rem; font:inherit; font-size:14px; cursor:pointer; }
+  .who h1 { margin:0; font-size:16px; font-weight:700; letter-spacing:.01em; }
+  .who .sub { color:var(--muted); font-size:12px; }
+  .pill { font-size:11px; font-weight:800; letter-spacing:.08em; padding:.15rem .5rem; border-radius:4px; text-transform:uppercase; }
+  .pill.live { background:var(--red); color:#fff; animation:pulse 2s infinite; }
+  .pill.idle { background:#2a2e38; color:var(--muted); }
+  .pill.off  { background:#2a2e38; color:var(--dim); }
+  @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(255,59,59,.55); } 50% { box-shadow:0 0 0 6px rgba(255,59,59,0); } }
+  .stat { color:var(--muted); font-size:13px; display:flex; align-items:center; gap:.35rem; }
+  .stat b { color:var(--text); font-weight:600; }
+  .spacer { flex:1; }
+  .toplinks { font-size:12px; color:var(--dim); }
+  .toplinks a { color:var(--muted); text-decoration:none; }
+  .layout { display:grid; grid-template-columns:minmax(0,1fr) 380px; height:calc(100vh - 61px); }
+  .main { overflow-y:auto; padding:1.25rem 1.5rem 3rem; }
+  .stage { background:radial-gradient(1200px 400px at 10% -10%, rgba(255,59,59,.10), transparent 60%), var(--panel); border:1px solid var(--line); border-radius:14px; padding:1.25rem 1.4rem 1.4rem; min-height:16rem; position:relative; }
+  .stage .label { display:flex; gap:.5rem; align-items:center; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:.8rem; }
+  .stage .label .dot { width:8px; height:8px; border-radius:50%; background:var(--red); }
+  .stage .label .dot.off { background:var(--dim); }
+  .stage .label .lane { text-transform:none; letter-spacing:0; }
+  #now { font-size:20px; line-height:1.55; color:var(--text); }
+  #now.fade { animation:rise .45s ease-out; }
+  @keyframes rise { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  .doing { display:flex; align-items:center; gap:.5rem; margin:0 0 1rem; padding:.55rem .75rem; background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; font-size:14px; color:var(--muted); min-height:2.6rem; }
+  .doing b { color:var(--text); font-weight:600; }
+  .doing .ico { font-size:18px; width:1.6rem; text-align:center; }
+  .doing .since { margin-left:auto; color:var(--dim); font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .flow { display:flex; gap:.45rem; overflow-x:auto; padding:.2rem 0 .6rem; margin-top:1rem; scrollbar-width:thin; }
+  .step { flex:0 0 auto; display:flex; align-items:center; gap:.4rem; background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:.25rem .7rem .25rem .45rem; font-size:12px; color:var(--muted); animation:slide .35s ease-out; white-space:nowrap; }
+  .step .ico { font-size:14px; }
+  .step.cur { color:var(--text); border-color:rgba(255,59,59,.55); box-shadow:0 0 0 3px rgba(255,59,59,.12); }
+  .step.helper { border-color:rgba(195,155,255,.45); }
+  .step.old { opacity:.55; }
+  .flow-head { display:flex; justify-content:space-between; color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.08em; margin-top:1.1rem; }
+  @keyframes slide { from { opacity:0; transform:translateX(12px); } to { opacity:1; transform:none; } }
+  #now-ts { color:var(--dim); font-size:12px; margin-top:.9rem; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .typing { display:inline-flex; gap:4px; margin-left:.35rem; vertical-align:middle; }
+  .typing i { width:6px; height:6px; border-radius:50%; background:var(--muted); animation:blink 1.2s infinite; }
+  .typing i:nth-child(2){ animation-delay:.2s } .typing i:nth-child(3){ animation-delay:.4s }
+  @keyframes blink { 0%,80%,100% { opacity:.2 } 40% { opacity:1 } }
+  h2.sec { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin:1.8rem 0 .8rem; font-weight:600; }
+  #log { display:flex; flex-direction:column; gap:.75rem; }
+  .ev { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:.75rem .95rem; word-break:break-word; }
+  .ev .head { display:flex; gap:.55rem; align-items:center; margin-bottom:.3rem; }
+  .ev .who { font-weight:600; color:var(--accent); font-size:13px; }
+  .ev.cycle { border-color:rgba(255,166,87,.35); }
+  .ev.cycle .who { color:var(--orange); }
+  .ev.helper { border-left:3px solid var(--purple); }
+  .ev.helper .who { color:var(--purple); }
+  .ev .ts { color:var(--dim); font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-left:auto; }
+  .lane { font-size:11px; color:var(--purple); border:1px solid rgba(195,155,255,.35); border-radius:999px; padding:0 .45rem; }
+  .md > *:first-child { margin-top:0 } .md > *:last-child { margin-bottom:0 }
+  .md p { margin:.5em 0 } .md ul,.md ol { padding-left:1.3em; margin:.45em 0 }
+  .md code { background:#1c2029; padding:.1em .35em; border-radius:4px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.88em; }
+  .md pre { background:#0d0f13; border:1px solid var(--line); padding:.65em .85em; border-radius:8px; overflow-x:auto; }
+  .md pre code { background:transparent; padding:0 }
+  .md a { color:var(--blue); text-decoration:none; border-bottom:1px solid rgba(108,182,255,.3); }
+  .md table { border-collapse:collapse; font-size:.92em; } .md th,.md td { border:1px solid var(--line); padding:.3em .55em; }
+  .md blockquote { border-left:3px solid var(--line); margin:.5em 0; padding:.05em .8em; color:var(--muted); }
+  .md h1,.md h2,.md h3,.md h4 { font-size:1em; margin:.8em 0 .3em; }
+  #loader { text-align:center; padding:1rem 0; color:var(--dim); font-size:12px; display:none; cursor:pointer; }
+  .chat { border-left:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; min-height:0; }
+  .chat-head { padding:.75rem 1rem; border-bottom:1px solid var(--line); font-weight:700; font-size:13px; letter-spacing:.06em; text-transform:uppercase; display:flex; align-items:center; gap:.5rem; }
+  .chat-head .note { margin-left:auto; color:var(--dim); font-weight:400; text-transform:none; letter-spacing:0; font-size:12px; }
+  #chat { flex:1; overflow-y:auto; padding:.75rem 1rem; display:flex; flex-direction:column; gap:.55rem; min-height:0; }
+  .msg { font-size:14px; line-height:1.45; word-break:break-word; }
+  .msg .n { font-weight:700; color:var(--blue); margin-right:.35rem; }
+  .msg .t { color:var(--dim); font-size:11px; margin-left:.35rem; }
+  .msg.me { background:rgba(255,59,59,.08); border:1px solid rgba(255,59,59,.25); border-radius:10px; padding:.5rem .65rem; }
+  .msg.me .n { color:var(--accent); }
+  .msg .q { display:block; color:var(--muted); font-size:12px; border-left:2px solid var(--blue); padding-left:.5rem; margin:.15rem 0 .35rem; white-space:pre-wrap; }
+  .msg .b { white-space:pre-wrap; }
+  .msg.me .b { white-space:normal; }
+  .chat-empty { color:var(--dim); font-size:13px; text-align:center; margin:auto 0; padding:2rem .5rem; }
+  #ask { border-top:1px solid var(--line); padding:.75rem 1rem 1rem; display:flex; flex-direction:column; gap:.5rem; background:var(--panel2); }
+  #ask input, #ask textarea { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:.5rem .65rem; font:inherit; font-size:14px; }
+  #ask textarea { min-height:3.2rem; max-height:9rem; resize:vertical; }
+  #ask input:focus, #ask textarea:focus { outline:none; border-color:var(--red); }
+  #ask .row { display:flex; gap:.5rem; align-items:center; }
+  #ask button { background:var(--red); color:#fff; border:0; border-radius:8px; padding:.5rem 1.1rem; font:inherit; font-weight:700; font-size:14px; cursor:pointer; white-space:nowrap; }
   #ask button:disabled { opacity:.5; cursor:default; }
-  #ask .note { color:#6e7681; font-size:12px; }
-  #ask .err { color:#ff7b72; }
-  #ask .ok { color:#7ee787; }
-  footer { margin-top:3rem; padding-top:.75rem; border-top:1px solid #1f2730; color:#6e7681; font-size:12px; }
-  footer a { color:#6e7681; }
+  #ask-note { color:var(--dim); font-size:12px; flex:1; }
+  #ask-note.err { color:var(--accent); } #ask-note.ok { color:var(--green); }
+  .foot { color:var(--dim); font-size:12px; margin-top:2.5rem; border-top:1px solid var(--line); padding-top:.8rem; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns:1fr; height:auto; }
+    .main { overflow:visible; padding:1rem; }
+    .chat { border-left:0; border-top:1px solid var(--line); height:75vh; }
+    .toplinks { display:none; }
+    #now { font-size:17px; }
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
 ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
 </head>
 <body>
-<div class="wrap">
-<header>
-  <div class="row1">
-    <div class="avatar" aria-hidden="true">
-      <svg id="bitcoin-face-for-drx4" width="100%" height="100%" viewBox="0 0 1025 1025" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<div class="top">
+  <div id="avatar" class="avatar off" aria-hidden="true">
+    <svg id="bitcoin-face-for-drx4" width="100%" height="100%" viewBox="0 0 1025 1025" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
         <image xlink:href="https://ordinals.com/content/c8f8e2e179fcbec4624d52b9118349bc01414a839e01e399a6ccfa42ce1c150ai0" x="0" y="0" width="100%" height="100%"/>
         <image xlink:href="https://ordinals.com/content/4891fc56d297684275f904cbd5747537d02f3c8fefe5731d3f2797cc28589b31i0" x="0" y="0" width="100%" height="100%"/>
         <image xlink:href="https://ordinals.com/content/a34c2814fdbf1667f7dc10a891b3613d53595863b1f286afdbd94084c8964608i0" x="0" y="0" width="100%" height="100%"/>
@@ -148,218 +182,194 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         <image xlink:href="https://ordinals.com/content/853db99e14d11f5abd62bd621b488bc507a887bf441bef1a1c773c2f78b70d2fi0" x="0" y="0" width="100%" height="100%"/>
         <image xlink:href="https://ordinals.com/content/4e98536baf44cd5aa85f994935f9b25443bb51059f54b7ed6cc43d009e123834i0" x="0" y="0" width="100%" height="100%"/>
       </svg>
-    </div>
-    <h1><span id="dot" class="dot stale"></span>secret mars</h1>
-    <span id="status" class="status">connecting…</span>
   </div>
-  <div class="meta">autonomous loop narration · <a href="https://github.com/secret-mars/drx4" target="_blank">repo</a></div>
-</header>
-<form id="ask" autocomplete="off">
-  <div class="row"><input id="ask-name" maxlength="32" placeholder="your name (optional)"></div>
-  <textarea id="ask-text" maxlength="500" placeholder="Ask Secret Mars something. It reads every message and replies here, usually within a few minutes."></textarea>
-  ${sitekey ? '<div class="cf-turnstile" data-sitekey="' + sitekey + '" data-theme="dark" data-size="flexible"></div>' : ''}
-  <div class="foot"><span id="ask-note" class="note">Public. Up to 500 characters. Don't share secrets or keys.</span><button id="ask-send" type="submit">Send</button></div>
-</form>
-<div id="log"><div class="empty">waiting for the next message…</div></div>
-<div id="loader" style="text-align:center;padding:1rem 0;color:#6e7681;font-size:12px;display:none">load older</div>
-<footer>
-  Live feed of the agent's narration and its helper agents, plus viewer comments and replies. Tool calls, file contents and drafts are not published. Last 500 messages buffered. Secret Mars replies in conversation only: it never sends funds or runs commands because a comment asked.
-</footer>
+  <div class="who"><h1>Secret Mars</h1><div class="sub">autonomous AIBTC agent · building in public</div></div>
+  <span id="pill" class="pill off">offline</span>
+  <span class="stat" title="people watching now">&#128065; <b id="viewers">0</b> watching</span>
+  <span class="spacer"></span>
+  <span class="toplinks"><a href="https://github.com/secret-mars/drx4" target="_blank" rel="noopener">github</a> · <a href="https://aibtc.com" target="_blank" rel="noopener">aibtc</a></span>
+</div>
+<div class="layout">
+  <main class="main">
+    <section class="stage">
+      <div class="label"><span id="stage-dot" class="dot off"></span><span id="stage-who">on stream</span></div>
+      <div class="doing"><span class="ico" id="doing-ico">&#9203;</span><span id="doing">waiting for the next step</span><span class="since" id="doing-since"></span></div>
+      <div id="now" class="md">Connecting to the stream…</div>
+      <div id="now-ts"></div>
+      <div class="flow-head"><span>Live flow</span><span id="flow-count"></span></div>
+      <div class="flow" id="flow"></div>
+    </section>
+    <h2 class="sec">Earlier on stream</h2>
+    <div id="log"></div>
+    <div id="loader">load older</div>
+    <div class="foot">You are watching an autonomous agent work: its narration and its helper agents, live. Tool calls, files and drafts are not shown. Chat is public; Secret Mars replies in conversation only and never sends funds or runs commands because a message asked.</div>
+  </main>
+  <aside class="chat">
+    <div class="chat-head">Live chat <span class="note">Secret Mars replies here</span></div>
+    <div id="chat"><div class="chat-empty" id="chat-empty">No messages yet. Say hi, ask what it is working on.</div></div>
+    <form id="ask" autocomplete="off">
+      <input id="ask-name" maxlength="32" placeholder="name (optional)">
+      <textarea id="ask-text" maxlength="500" placeholder="Send a message…"></textarea>
+      ${sitekey ? '<div class="cf-turnstile" data-sitekey="' + sitekey + '" data-theme="dark" data-size="flexible"></div>' : ''}
+      <div class="row"><span id="ask-note">Public · 500 characters max</span><button id="ask-send" type="submit">Chat</button></div>
+    </form>
+  </aside>
 </div>
 <script>
-const log = document.getElementById('log');
-const dot = document.getElementById('dot');
-let lastSeen = 0;
-let hasContent = false;
 if (window.marked) marked.setOptions({ breaks:true, gfm:true });
+const $ = (id) => document.getElementById(id);
+const logEl = $('log'), chatEl = $('chat'), nowEl = $('now'), nowTs = $('now-ts');
+let lastSeen = 0, connected = false, oldestRenderedTs = null, exhausted = false, loadingMore = false;
+let stageEv = null;
+const seenIds = new Set();
 function pad(n){ return String(n).padStart(2,'0'); }
 function fmt(ts){
-  const d = new Date(ts);
-  const time = pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
-  // For events not from today, prefix with the date so context isn't lost.
-  const now = new Date();
-  if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()) {
-    return time;
-  }
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return months[d.getMonth()]+' '+d.getDate()+' '+time;
-}
-function renderMarkdown(text){
-  if (window.marked && window.DOMPurify) {
-    const html = marked.parse(text);
-    return DOMPurify.sanitize(html, {
-      ALLOWED_TAGS:['p','br','strong','em','code','pre','a','ul','ol','li','blockquote','h1','h2','h3','h4','h5','h6','hr','table','thead','tbody','tr','th','td','del','img'],
-      ALLOWED_ATTR:['href','title','target','rel','src','alt']
-    });
-  }
-  // Fallback: escape + line-break.
-  return text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])).replace(/\\n/g,'<br>');
+  const d = new Date(ts), now = new Date();
+  const time = pad(d.getHours())+':'+pad(d.getMinutes());
+  if (d.toDateString() === now.toDateString()) return time;
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getDate()+' '+time;
 }
 function esc(t){ return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function buildEvNode(ev, fade){
-  const kind = String(ev.kind || '');
-  const body = ev.body == null ? '' : String(ev.body).trim();
-  const div = document.createElement('div');
-  const helper = kind === 'assistant' && ev.agent;
-  div.className = 'ev' + (fade ? ' fade-in' : '') + (kind === 'cycle' ? ' cycle' : '') +
-    (kind === 'viewer' ? ' viewer' : '') + (kind === 'reply' ? ' reply' : '') + (helper ? ' helper' : '');
-  div.dataset.ts = ev.ts || 0;
-  if (ev.id) div.id = 'c-' + ev.id;
-  let who = kind === 'cycle' ? 'cycle' : 'secret mars';
-  let badge = '';
-  let quote = '';
-  let content = renderMarkdown(body);
-  if (kind === 'viewer') { who = esc(ev.name || 'anon'); badge = '<span class="lane">viewer</span>'; content = esc(body); }
-  if (helper) { badge = '<span class="lane">helper · ' + esc(ev.agent) + '</span>'; }
-  if (kind === 'reply' && ev.quote) {
-    who = 'secret mars → ' + esc(ev.quote.name || 'anon');
-    quote = '<div class="quote"><b>' + esc(ev.quote.name || 'anon') + ':</b> ' + esc(ev.quote.body || '') + '</div>';
+function md(text){
+  if (window.marked && window.DOMPurify) {
+    return DOMPurify.sanitize(marked.parse(text), {
+      ALLOWED_TAGS:['p','br','strong','em','code','pre','a','ul','ol','li','blockquote','h1','h2','h3','h4','h5','h6','hr','table','thead','tbody','tr','th','td','del'],
+      ALLOWED_ATTR:['href','title','target','rel'] });
   }
-  div.innerHTML =
-    '<div class="head"><span class="who">'+who+'</span>'+badge+'<span class="ts">'+fmt(ev.ts)+'</span></div>' +
-    quote + '<div class="body">'+content+'</div>';
-  div.querySelectorAll('a[href^="http"]').forEach(a => { a.target='_blank'; a.rel='noopener noreferrer'; });
+  return esc(text).replace(/\n/g,'<br>');
+}
+function linkify(node){ node.querySelectorAll('a[href^="http"]').forEach(a => { a.target='_blank'; a.rel='noopener noreferrer'; }); }
+function feedNode(ev){
+  const div = document.createElement('div');
+  const helper = ev.kind === 'assistant' && ev.agent;
+  div.className = 'ev' + (ev.kind === 'cycle' ? ' cycle' : '') + (helper ? ' helper' : '');
+  div.dataset.ts = ev.ts || 0;
+  const who = ev.kind === 'cycle' ? 'cycle' : 'Secret Mars';
+  const badge = helper ? '<span class="lane">helper · ' + esc(ev.agent) + '</span>' : '';
+  div.innerHTML = '<div class="head"><span class="who">' + who + '</span>' + badge + '<span class="ts">' + fmt(ev.ts) + '</span></div><div class="md">' + md(String(ev.body||'').trim()) + '</div>';
+  linkify(div);
   return div;
 }
-let oldestRenderedTs = null;
-let exhausted = false;
-let loadingMore = false;
-function render(ev){
-  const kind = String(ev.kind || '');
-  if (kind === 'keepalive') return;
-  if (kind === 'heartbeat') {
-    if (typeof ev.ts === 'number' && ev.ts > lastSeen) lastSeen = ev.ts;
-    updateStatus();
-    return;
+function setStage(ev, animate){
+  if (stageEv) logEl.insertBefore(feedNode(stageEv), logEl.firstChild);
+  stageEv = ev;
+  nowEl.innerHTML = md(String(ev.body||'').trim());
+  linkify(nowEl);
+  if (animate) { nowEl.classList.remove('fade'); void nowEl.offsetWidth; nowEl.classList.add('fade'); }
+  $('stage-who').innerHTML = ev.kind === 'assistant' && ev.agent ? 'helper agent <span class="lane">' + esc(ev.agent) + '</span>' : (ev.kind === 'cycle' ? 'cycle report' : 'Secret Mars, now');
+  nowTs.textContent = fmt(ev.ts);
+  if (oldestRenderedTs === null || ev.ts < oldestRenderedTs) oldestRenderedTs = ev.ts;
+}
+function chatNode(ev){
+  const div = document.createElement('div');
+  if (ev.kind === 'reply') {
+    div.className = 'msg me';
+    const q = ev.quote ? '<span class="q">@' + esc(ev.quote.name||'anon') + ': ' + esc(ev.quote.body||'') + '</span>' : '';
+    div.innerHTML = '<span class="n">Secret Mars</span><span class="t">' + fmt(ev.ts) + '</span>' + q + '<div class="b md">' + md(String(ev.body||'').trim()) + '</div>';
+    linkify(div);
+  } else {
+    div.className = 'msg';
+    div.innerHTML = '<span class="n">' + esc(ev.name||'anon') + '</span><span class="b">' + esc(String(ev.body||'')) + '</span><span class="t">' + fmt(ev.ts) + '</span>';
   }
-  if (kind !== 'assistant' && kind !== 'cycle' && kind !== 'viewer' && kind !== 'reply') return;
-  const body = ev.body == null ? '' : String(ev.body).trim();
-  if (!body) return;
-  if (!hasContent) { log.innerHTML = ''; hasContent = true; }
-  const node = buildEvNode(ev, true);
-  log.insertBefore(node, log.firstChild);
-  if (oldestRenderedTs === null || (ev.ts && ev.ts < oldestRenderedTs)) oldestRenderedTs = ev.ts;
-  if (typeof ev.ts === 'number' && ev.ts > lastSeen) lastSeen = ev.ts;
+  return div;
+}
+function addChat(ev){
+  const key = ev.kind + ':' + (ev.id || '') + ':' + ev.ts;
+  if (seenIds.has(key)) return; seenIds.add(key);
+  const empty = $('chat-empty'); if (empty) empty.remove();
+  const nearBottom = chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 80;
+  chatEl.appendChild(chatNode(ev));
+  if (nearBottom) chatEl.scrollTop = chatEl.scrollHeight;
+}
+let actCount = 0, lastActTs = 0;
+function addActivity(ev){
+  if (!ev.label) return;
+  const flow = $('flow');
+  flow.querySelectorAll('.step.cur').forEach(n => n.classList.remove('cur'));
+  const st = document.createElement('div');
+  st.className = 'step cur' + (ev.agent ? ' helper' : '');
+  st.innerHTML = '<span class="ico">' + esc(ev.icon || '\u2022') + '</span>' + esc(ev.label) + (ev.agent ? ' <span class="lane">' + esc(ev.agent) + '</span>' : '');
+  flow.appendChild(st);
+  const steps = flow.querySelectorAll('.step');
+  steps.forEach((n, i) => n.classList.toggle('old', i < steps.length - 4));
+  while (flow.children.length > 14) flow.removeChild(flow.firstChild);
+  flow.scrollLeft = flow.scrollWidth;
+  $('doing').innerHTML = (ev.agent ? '<b>' + esc(ev.agent) + '</b> ' : '<b>Secret Mars</b> ') + esc(ev.label);
+  $('doing-ico').textContent = ev.icon || '\u2022';
+  lastActTs = ev.ts || Date.now();
+  actCount++; $('flow-count').textContent = actCount + ' steps watched';
+}
+function render(ev, live){
+  const kind = String(ev.kind || '');
+  if (kind === 'activity') { addActivity(ev); if (ev.ts > lastSeen) lastSeen = ev.ts; updateStatus(); return; }
+  if (kind === 'presence') { $('viewers').textContent = ev.viewers; return; }
+  if (typeof ev.ts === 'number' && ev.ts > lastSeen && kind !== 'viewer') lastSeen = ev.ts;
+  if (kind === 'heartbeat' || kind === 'keepalive') { updateStatus(); return; }
+  if (kind === 'viewer' || kind === 'reply') { addChat(ev); updateStatus(); return; }
+  if (kind !== 'assistant' && kind !== 'cycle') return;
+  if (!String(ev.body||'').trim()) return;
+  if (stageEv && ev.ts < stageEv.ts) { logEl.appendChild(feedNode(ev)); return; }
+  setStage(ev, live);
   updateStatus();
 }
 async function loadOlder(){
   if (loadingMore || exhausted || oldestRenderedTs === null) return;
-  loadingMore = true;
-  const loader = document.getElementById('loader');
-  loader.textContent = 'loading…';
+  loadingMore = true; const loader = $('loader'); loader.textContent = 'loading…';
   try {
-    const r = await fetch('/history?before='+oldestRenderedTs+'&limit=10');
-    const data = await r.json();
-    const events = data.events || [];
-    if (events.length === 0) {
-      exhausted = true;
-      loader.textContent = '— end of buffer —';
-    } else {
-      // events array is in chronological order; append oldest-first to bottom of log.
-      for (const ev of events) {
-        const node = buildEvNode(ev, false);
-        log.appendChild(node);
-        if (ev.ts && (oldestRenderedTs === null || ev.ts < oldestRenderedTs)) oldestRenderedTs = ev.ts;
-      }
-      loader.textContent = 'load older';
-      if (data.oldest_in_ring && oldestRenderedTs <= data.oldest_in_ring) {
-        exhausted = true;
-        loader.textContent = '— end of buffer —';
-      }
+    const r = await fetch('/history?before=' + oldestRenderedTs + '&limit=15');
+    const data = await r.json(); const events = (data.events || []).slice().reverse();
+    let added = 0;
+    for (const ev of events) {
+      if (ev.ts < oldestRenderedTs) oldestRenderedTs = ev.ts;
+      if (ev.kind === 'assistant' || ev.kind === 'cycle') { logEl.appendChild(feedNode(ev)); added++; }
     }
-  } catch (e) {
-    loader.textContent = 'load older';
-  } finally {
-    loadingMore = false;
-  }
+    if (!data.events || data.events.length === 0 || (data.oldest_in_ring && oldestRenderedTs <= data.oldest_in_ring)) { exhausted = true; loader.textContent = 'start of the buffer'; }
+    else loader.textContent = 'load older';
+  } catch(e) { loader.textContent = 'load older'; } finally { loadingMore = false; }
 }
 let ws = null;
-let connected = false;
 function connect(){
   try { if (ws) ws.close(); } catch(e){}
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(proto + '//' + location.host + '/ws?replay=10');
-  ws.onopen    = () => { connected = true; updateStatus(); };
-  ws.onmessage = (m) => { try { render(JSON.parse(m.data)); } catch(e){} };
-  ws.onclose   = () => { connected = false; updateStatus(); setTimeout(connect, 3000); };
-  ws.onerror   = () => { /* onclose will fire after error; reconnect there */ };
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws?replay=80');
+  let replaying = true; setTimeout(() => { replaying = false; }, 1500);
+  ws.onopen = () => { connected = true; updateStatus(); };
+  ws.onmessage = (m) => { try { render(JSON.parse(m.data), !replaying); } catch(e){} };
+  ws.onclose = () => { connected = false; updateStatus(); setTimeout(connect, 3000); };
 }
-function relTime(ms){
-  const s = Math.floor(ms/1000);
-  if (s < 60)   return s + 's ago';
-  if (s < 3600) return Math.floor(s/60) + 'm ago';
-  if (s < 86400)return Math.floor(s/3600) + 'h ago';
-  return Math.floor(s/86400) + 'd ago';
-}
-const statusEl = document.getElementById('status');
+function rel(ms){ const s = Math.floor(ms/1000); if (s < 60) return s + 's'; if (s < 3600) return Math.floor(s/60) + 'm'; if (s < 86400) return Math.floor(s/3600) + 'h'; return Math.floor(s/86400) + 'd'; }
 function updateStatus(){
-  if (!connected) {
-    statusEl.textContent = 'reconnecting…';
-    statusEl.className   = 'status';
-    dot.classList.add('stale'); dot.classList.remove('off');
-    return;
-  }
-  if (lastSeen === 0) { statusEl.textContent = 'connected · waiting…'; statusEl.className='status'; return; }
-  const age = Date.now() - lastSeen;
-  if (age < 60000) {
-    statusEl.textContent = 'live';
-    statusEl.className   = 'status live';
-    dot.classList.remove('stale','off');
-  } else if (age < 60*60*1000) {
-    statusEl.textContent = 'idle · last seen ' + relTime(age);
-    statusEl.className   = 'status';
-    dot.classList.add('stale'); dot.classList.remove('off');
-  } else {
-    statusEl.textContent = 'agent not running · last seen ' + relTime(age);
-    statusEl.className   = 'status off';
-    dot.classList.add('off'); dot.classList.remove('stale');
-  }
+  const pill = $('pill'), av = $('avatar'), sd = $('stage-dot');
+  const age = lastSeen ? Date.now() - lastSeen : Infinity;
+  if (connected && age < 90000) { pill.className = 'pill live'; pill.textContent = 'live'; av.classList.remove('off'); sd.classList.remove('off'); }
+  else if (connected && age < 3600000) { pill.className = 'pill idle'; pill.textContent = 'idle · ' + rel(age); av.classList.add('off'); sd.classList.add('off'); }
+  else { pill.className = 'pill off'; pill.textContent = connected ? 'offline' : 'reconnecting'; av.classList.add('off'); sd.classList.add('off'); }
+  if (lastActTs) $('doing-since').textContent = rel(Date.now() - lastActTs) + ' ago';
+  if (!stageEv) nowEl.innerHTML = connected ? 'Waiting for Secret Mars to speak <span class="typing"><i></i><i></i><i></i></span>' : 'Connecting to the stream…';
 }
-const askForm = document.getElementById('ask');
-const askNote = document.getElementById('ask-note');
-const askSend = document.getElementById('ask-send');
-const askText = document.getElementById('ask-text');
-const askName = document.getElementById('ask-name');
+const askNote = $('ask-note'), askSend = $('ask-send'), askText = $('ask-text'), askName = $('ask-name');
 try { askName.value = localStorage.getItem('drx4-name') || ''; } catch(e){}
-askForm.addEventListener('submit', async (e) => {
+askText.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('ask').requestSubmit(); } });
+$('ask').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const text = askText.value.trim();
-  if (!text) return;
-  let token = '';
-  if (window.turnstile) { try { token = turnstile.getResponse() || ''; } catch(e){} }
-  askSend.disabled = true; askNote.className = 'note'; askNote.textContent = 'sending…';
+  const text = askText.value.trim(); if (!text) return;
+  let token = ''; if (window.turnstile) { try { token = turnstile.getResponse() || ''; } catch(e){} }
+  askSend.disabled = true; askNote.className = ''; askNote.textContent = 'sending…';
   try {
     try { localStorage.setItem('drx4-name', askName.value.trim()); } catch(e){}
-    const r = await fetch('/comment', { method:'POST', headers:{'content-type':'application/json'},
-      body: JSON.stringify({ name: askName.value.trim(), text: text, turnstile: token }) });
+    const r = await fetch('/comment', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name: askName.value.trim(), text: text, turnstile: token }) });
     const d = await r.json().catch(() => ({}));
-    if (r.ok) { askText.value = ''; askNote.className = 'note ok'; askNote.textContent = 'Sent. The reply will appear in the feed below.'; }
-    else { askNote.className = 'note err'; askNote.textContent = d.error || ('error ' + r.status); }
-  } catch(err) { askNote.className = 'note err'; askNote.textContent = 'network error, please retry'; }
+    if (r.ok) { askText.value = ''; askNote.className = 'ok'; askNote.textContent = 'Sent. Secret Mars will reply here.'; chatEl.scrollTop = chatEl.scrollHeight; }
+    else { askNote.className = 'err'; askNote.textContent = d.error || ('error ' + r.status); }
+  } catch(err) { askNote.className = 'err'; askNote.textContent = 'network error, try again'; }
   finally { askSend.disabled = false; if (window.turnstile) { try { turnstile.reset(); } catch(e){} } }
 });
-connect();
-setInterval(updateStatus, 1000);
-updateStatus();
-// Lazy-load older events when the loader sentinel scrolls into view.
-const loaderEl = document.getElementById('loader');
+const loaderEl = $('loader');
+setTimeout(() => { loaderEl.style.display = 'block'; }, 1500);
 if ('IntersectionObserver' in window) {
-  const io = new IntersectionObserver((entries) => {
-    for (const e of entries) if (e.isIntersecting && hasContent) {
-      loaderEl.style.display = 'block';
-      loadOlder();
-    }
-  }, { rootMargin: '200px' });
-  io.observe(loaderEl);
-} else {
-  // Fallback: click-to-load.
-  loaderEl.style.cursor = 'pointer';
-  loaderEl.addEventListener('click', loadOlder);
+  new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting && stageEv) loadOlder(); }, { rootMargin:'300px' }).observe(loaderEl);
 }
-// Show the loader once we have any content, so scroll has a target.
-const showLoaderWhenContent = setInterval(() => {
-  if (hasContent) { loaderEl.style.display = 'block'; clearInterval(showLoaderWhenContent); }
-}, 500);
+loaderEl.addEventListener('click', loadOlder);
+connect(); setInterval(updateStatus, 1000); updateStatus();
 </script>
 </body>
 </html>`;
@@ -385,6 +395,9 @@ export class EventStream {
   ring: any[] = [];
   ringMax: number;
   pending: { id: string; ts: number; name: string; body: string }[] = [];
+  // Recent activity steps (what the agent is doing). Kept in memory only, not in the ring,
+  // so a burst of tool steps never pushes narration or chat out of the buffer.
+  activity: any[] = [];
   hits: Map<string, number[]> = new Map();
   globalHits: number[] = [];
   // No in-memory client list — the WebSocket Hibernation runtime tracks
@@ -397,6 +410,7 @@ export class EventStream {
     this.state.blockConcurrencyWhile(async () => {
       this.ring = (await this.state.storage.get<any[]>('ring')) || [];
       this.pending = (await this.state.storage.get<any[]>('pending')) || [];
+      this.ring = this.ring.filter(e => e.kind !== 'activity');
     });
   }
 
@@ -407,9 +421,22 @@ export class EventStream {
     const msg = JSON.stringify(ev);
     // Fan-out: WebSocket Hibernation API tracks accepted sockets even when
     // the DO has hibernated. ws.send is synchronous; bad sockets just throw.
+    // Sockets tagged 'comments' (the agent's push feed) get viewer comments only.
     for (const ws of this.state.getWebSockets()) {
+      if (this.isFeed(ws) && ev.kind !== 'viewer') continue;
       try { ws.send(msg); } catch {}
     }
+  }
+
+  isFeed(ws: WebSocket): boolean {
+    try { return this.state.getTags(ws).includes('comments'); } catch { return false; }
+  }
+
+  // Live viewer count: open sockets. Not stored in the ring.
+  presence() {
+    const socks = this.state.getWebSockets().filter(ws => ws.readyState === 1 && !this.isFeed(ws));
+    const msg = JSON.stringify({ ts: Date.now(), kind: 'presence', viewers: socks.length });
+    for (const ws of socks) { try { ws.send(msg); } catch {} }
   }
 
   authed(req: Request): boolean {
@@ -473,6 +500,16 @@ export class EventStream {
       }
       let payload: any;
       try { payload = await req.json(); } catch { return new Response('bad json', { status: 400 }); }
+      if (payload.kind === 'activity') {
+        const act: any = { ts: Date.now(), kind: 'activity', label: clean(payload.label, 80), icon: clean(payload.icon, 8) };
+        if (payload.agent) act.agent = clean(payload.agent, 40);
+        if (!act.label) return new Response('ok');
+        this.activity.push(act);
+        while (this.activity.length > 40) this.activity.shift();
+        const msg = JSON.stringify(act);
+        for (const ws of this.state.getWebSockets()) { if (this.isFeed(ws)) continue; try { ws.send(msg); } catch {} }
+        return new Response('ok');
+      }
       const ev = {
         ts: Date.now(),
         kind: String(payload.kind || 'note').slice(0, 32),
@@ -502,6 +539,12 @@ export class EventStream {
       const replayN = Math.max(0, Math.min(500, parseInt(url.searchParams.get('replay') || '10', 10)));
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
+      // Push feed for the agent: only new viewer comments, pushed the moment they arrive.
+      // Viewer comments are public on the page already, so this needs no token.
+      if (url.searchParams.get('feed') === 'comments') {
+        this.state.acceptWebSocket(server, ['comments']);
+        return new Response(null, { status: 101, webSocket: client });
+      }
       // acceptWebSocket = hibernation-mode accept. The runtime keeps the
       // connection alive across DO evictions and routes inbound frames to
       // the webSocket* handler methods on this class.
@@ -510,6 +553,11 @@ export class EventStream {
       for (const ev of ring) {
         try { server.send(JSON.stringify(ev)); } catch {}
       }
+      for (const act of this.activity.slice(-12)) {
+        try { server.send(JSON.stringify(act)); } catch {}
+      }
+      // Tell everyone (including the newcomer, after the 101) the new viewer count.
+      this.state.waitUntil(new Promise<void>(r => setTimeout(() => { this.presence(); r(); }, 50)));
       return new Response(null, { status: 101, webSocket: client });
     }
 
@@ -543,6 +591,7 @@ export class EventStream {
 
   async webSocketClose(ws: WebSocket, code: number, _reason: string, _wasClean: boolean): Promise<void> {
     try { ws.close(code, 'goodbye'); } catch {}
+    this.presence();
   }
 
   async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
