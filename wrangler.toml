@@ -16,3 +16,5 @@ new_sqlite_classes = ["EventStream"]
 
 [vars]
 RING_SIZE = "500"
+# Turnstile site key (public). The matching secret is the TURNSTILE_SECRET worker secret.
+TURNSTILE_SITEKEY = "0x4AAAAAAGOQahf2_Y6KXbJN"
