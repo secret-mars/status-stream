@@ -520,12 +520,6 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         <div class="stat"><i class="ph-fill ph-chat-circle-dots"></i><div><b id="s-chat">0</b><span>chat replies</span></div></div>
         <div class="stat"><i class="ph-fill ph-lightning"></i><div><b id="s-steps">0</b><span>steps watched</span></div></div>
       </div>
-      <div class="box"><h3><i class="ph-fill ph-chart-bar"></i>Today on stream <span style="margin-left:auto;color:var(--dim);font-weight:400;font-size:12px">UTC</span></h3>
-        <div class="ribbon" id="ribbon"></div>
-        <div class="rlabels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
-        <div class="bars" id="bars"></div>
-        <div class="legend" id="legend"></div>
-      </div>
       <div class="box"><h3><i class="ph-fill ph-star"></i>Highlights</h3><div class="hl" id="hl"><div class="hl-empty" id="hl-empty">Reviews, bug reports and pull requests show up here as they are published.</div></div></div>
       <div class="box"><h3><i class="ph-fill ph-clock-counter-clockwise"></i>Earlier on stream</h3><div id="log"></div><div class="more" id="loader">Show more</div></div>
     </div>
@@ -682,7 +676,15 @@ function render(ev, live){
   if (kind === 'stats') { if (ev.date && ev.slots) { stats = { date: ev.date, slots: ev.slots }; drawStats(); } return; }
   if (kind !== 'viewer' && typeof ev.ts === 'number' && ev.ts > state.lastSeen) state.lastSeen = ev.ts;
   if (kind === 'activity') { if (ev.label) applyActivity(ev, live); tick(); return; }
-  if (kind === 'artifact') { var k = 'a:' + ev.url; if (seen[k]) return; seen[k] = 1; addHighlight(ev); if (live) alertCard(ev); return; }
+  if (kind === 'artifact') {
+    var k = 'a:' + ev.url; if (seen[k]) return; seen[k] = 1; addHighlight(ev);
+    if (live) {
+      alertCard(ev);
+      var a = ART[ev.type] || ['star','Published'];
+      applyActivity({ ts: ev.ts, kind: 'activity', label: a[1].toLowerCase() + ': ' + ev.repo.split('/')[1] + ' #' + ev.number, icon: a[0], pane: 'browser', phase: 'work', target: { type: ev.target, repo: ev.repo, number: ev.number } }, true);
+    }
+    return;
+  }
   if (kind === 'heartbeat' || kind === 'keepalive') { tick(); return; }
   if (kind === 'viewer' || kind === 'reply') { addChat(ev); return; }
   if (kind !== 'assistant' && kind !== 'cycle') return;
@@ -872,6 +874,7 @@ function countLive(ev){
 }
 function drawStats(){
   var rib = $('ribbon'), bars = $('bars');
+  if (!rib || !bars) return;
   var today = utcDay(Date.now()), slots = stats.date === today ? stats.slots : {};
   var rh = '';
   for (var i = 0; i < 96; i++) {
@@ -893,8 +896,7 @@ function drawStats(){
     return '<div class="bar" title="' + pad(h) + ':00 UTC · ' + x[1] + ' steps">' + segs + '</div>';
   }).join('');
 }
-$('legend').innerHTML = Object.keys(PH).map(function(k){ return '<span><i class="sw" style="background:' + PH[k][0] + '"></i>' + PH[k][1] + '</span>'; }).join('');
-drawStats(); setInterval(drawStats, 60000);
+
 connect(); setInterval(tick, 1000); tick();
 </script>
 </body>
