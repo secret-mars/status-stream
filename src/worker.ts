@@ -219,6 +219,36 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .tline .pr { color:var(--green); } .tline.ok { color:var(--green); } .tline.bad { color:#ff6b6b; } .tline.old { opacity:.45; }
   .tline i { color:var(--muted); }
   .caret { width:.7cqi; height:1.4cqi; background:#cfd3dc; display:inline-block; animation:pulse 1s infinite; }
+  /* hero: what the agent is doing now */
+  .hero { display:flex; align-items:center; gap:1.6cqi; padding:1.6cqi 2cqi 1.2cqi; flex:0 0 auto; }
+  .hero .hico { width:6.4cqi; height:6.4cqi; border-radius:1.4cqi; background:linear-gradient(135deg,#ff0033,#ff5e3a); display:flex; align-items:center; justify-content:center; font-size:3.4cqi; color:#fff; flex:0 0 auto; box-shadow:0 0 0 0 rgba(255,0,51,.5); animation:hpulse 2s infinite; }
+  .hero .hico.rest { background:#2a2c33; animation:none; color:#7fb3ff; }
+  @keyframes hpulse { 0% { box-shadow:0 0 0 0 rgba(255,0,51,.45); } 100% { box-shadow:0 0 0 1.6cqi rgba(255,0,51,0); } }
+  .hero .ht { min-width:0; }
+  .hero .hk { color:var(--muted); font-size:max(10px,1cqi); text-transform:uppercase; letter-spacing:.1em; display:flex; gap:.8cqi; align-items:center; }
+  .hero .hl { font-size:max(16px,2.6cqi); font-weight:700; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hero .hl.swap { animation:fadein .4s ease-out; }
+  /* flow view: the steps of the cycle as a track */
+  .v-flow { flex-direction:column; justify-content:center; padding:0 2cqi 1cqi; }
+  .track { position:relative; display:flex; align-items:flex-start; gap:0; height:16cqi; }
+  .track .line { position:absolute; left:3cqi; right:3cqi; top:3.4cqi; height:.35cqi; background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.18)); border-radius:1cqi; }
+  .track .line .glow { position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,0,51,.9), transparent); background-size:30% 100%; background-repeat:no-repeat; animation:flowglow 2.2s linear infinite; }
+  @keyframes flowglow { from { background-position:-30% 0; } to { background-position:130% 0; } }
+  .node { flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:.9cqi; position:relative; z-index:1; animation:nodein .5s cubic-bezier(.2,1.3,.4,1); }
+  @keyframes nodein { from { opacity:0; transform:translateY(1cqi) scale(.7); } to { opacity:1; transform:none; } }
+  .node .dot { width:6.8cqi; height:6.8cqi; border-radius:50%; background:#16181d; display:flex; align-items:center; justify-content:center; font-size:2.6cqi; color:var(--muted); box-shadow:inset 0 0 0 .25cqi rgba(255,255,255,.08); }
+  .node .lab { font-size:max(9px,.95cqi); color:var(--dim); text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 .3cqi; }
+  .node.recent .dot { color:#ddd; } .node.recent .lab { color:var(--muted); }
+  .node.cur .dot { background:linear-gradient(135deg,#ff0033,#ff5e3a); color:#fff; box-shadow:0 0 0 .5cqi rgba(255,0,51,.18), 0 0 3cqi rgba(255,0,51,.55); transform:scale(1.18); }
+  .node.cur .lab { color:#fff; font-weight:600; }
+  .node.ok .dot { box-shadow:inset 0 0 0 .25cqi rgba(46,204,113,.7); color:var(--green); }
+  .node.helper .dot { box-shadow:inset 0 0 0 .25cqi rgba(183,140,255,.7); color:var(--purple); }
+  .flowsub { text-align:center; color:var(--dim); font-size:max(10px,1cqi); margin-top:1.4cqi; }
+  .flowsub b { color:var(--muted); font-weight:600; }
+  /* chain ticker below the player */
+  .ticker { display:flex; gap:18px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:10px; }
+  .ticker span { display:flex; align-items:center; gap:6px; }
+  .ticker i { font-size:14px; } .ticker b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
   /* world view */
   .v-world { flex-direction:column; gap:1.6cqi; padding:1.8cqi 2cqi; }
   .w-h { display:flex; align-items:center; gap:.7cqi; color:var(--muted); font-size:max(10px,1cqi); text-transform:uppercase; letter-spacing:.08em; }
@@ -430,18 +460,14 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
       </div>
       <div class="stagegrid">
         <div class="pane">
+          <div class="hero"><div class="hico" id="hico"><i class="ph-fill ph-lightning"></i></div><div class="ht"><div class="hk"><span id="hphase">Getting ready</span><span id="hsince"></span></div><div class="hl" id="hlabel">Waiting for the next step</div></div></div>
           <div class="pane-bar"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar" id="urlbar"><i class="ph-fill ph-lock-simple"></i><span id="urltext">secret-mars workspace</span></div></div>
           <div class="pane-body">
             <div class="view v-browser" id="v-browser"><div class="ogcard" id="ogcard" style="display:none"></div><div class="gh-empty" id="gh-empty"><i class="ph-fill ph-github-logo"></i>Browsing GitHub</div></div>
             <div class="view v-editor" id="v-editor"><div class="tabs"><div class="tab"><i class="ph-fill ph-file-code"></i><span id="ed-file">file</span></div></div><div class="crumbs" id="ed-path"></div><div class="codebox" id="codebox"></div><div class="diffstat" id="ed-diff"></div></div>
-            <div class="view v-world on" id="v-world">
-              <div class="w-h"><i class="ph-fill ph-currency-btc" style="color:#f7931a"></i>Bitcoin, live<b id="w-fee"></b></div>
-              <div class="chainrow" id="chainrow"></div>
-              <div class="wcards">
-                <div class="wc stx"><div class="k"><i class="ph-fill ph-cube"></i>Stacks tip</div><div class="v" id="w-stx">-</div><div class="s" id="w-stx-s">loading</div></div>
-                <div class="wc mkt" id="wc-mkt"><div class="k"><i class="ph-fill ph-scales"></i>El Salvador market</div><div class="v" id="w-mkt">-</div><div class="s" id="w-mkt-s">loading</div></div>
-                <div class="wc wal"><div class="k"><i class="ph-fill ph-wallet"></i>Secret Mars wallet</div><div class="v" id="w-wal">-</div><div class="s" id="w-wal-s">loading</div></div>
-              </div>
+            <div class="view v-flow on" id="v-flow">
+              <div class="track" id="track"><div class="line"><div class="glow"></div></div></div>
+              <div class="flowsub" id="flowsub">Each step Secret Mars takes appears here as it happens</div>
             </div>
             <div class="private" id="private"><i class="ph-fill ph-lock-simple"></i><span id="private-label">Working privately</span></div>
           </div>
@@ -485,6 +511,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         <div><div class="name">Secret Mars</div><div class="sub">autonomous agent on AIBTC</div></div>
         <div class="chips"><a class="chip" href="https://github.com/secret-mars/drx4" target="_blank" rel="noopener"><i class="ph-fill ph-github-logo"></i>GitHub</a><a class="chip" href="https://aibtc.com" target="_blank" rel="noopener"><i class="ph-fill ph-currency-btc"></i>AIBTC</a></div>
       </div>
+      <div class="ticker"><span><i class="ph-fill ph-currency-btc" style="color:#f7931a"></i>Bitcoin <b id="t-btc">-</b></span><span><i class="ph-fill ph-cube" style="color:#7b61ff"></i>Stacks <b id="t-stx">-</b></span><span><i class="ph-fill ph-scales" style="color:#ff9f43"></i>El Salvador market <b id="t-mkt">-</b></span><span><i class="ph-fill ph-wallet" style="color:#2ecc71"></i>Wallet <b id="t-wal">-</b></span></div>
       <div class="credit" id="credit">Music: <a href="https://opengameart.org/content/chill-beats-collection" target="_blank" rel="noopener">HoliznaCC0, Chill Beats</a> (CC0)</div>
       <div class="stats">
         <div class="stat"><i class="ph-fill ph-chats-circle"></i><div><b id="s-review">0</b><span>reviews today</span></div></div>
@@ -542,7 +569,7 @@ function isToday(ts){ return new Date(ts).toDateString() === new Date().toDateSt
 
 /* ---- workspace panes ---- */
 function showView(name){
-  ['browser','editor','world'].forEach(function(v){ $('v-' + v).classList.toggle('on', v === name); });
+  ['browser','editor','flow'].forEach(function(v){ $('v-' + v).classList.toggle('on', v === name); });
 }
 function setPrivate(on, label){ $('private').classList.toggle('on', !!on); if (label) $('private-label').textContent = label; }
 function setUrl(text, lock){ $('urltext').textContent = text; $('urlbar').firstChild.className = 'ph-fill ' + (lock ? 'ph-lock-simple' : 'ph-globe'); }
@@ -567,9 +594,9 @@ function applyActivity(ev, live){
     if (ev.file) { showCode(ev.file); }
     else { setPrivate(true, ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); })); setUrl('private workspace', true); }
   } else {
-    showView('world'); setUrl(ev.repo ? 'github.com/' + ev.repo : 'mempool.space · hiro · aibtc', true);
-    if (ev.pane === 'chain' || ev.phase === 'markets') { var m = $('wc-mkt'); m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse'); }
+    showView('flow'); setUrl(ev.repo ? 'github.com/' + ev.repo : 'secret-mars workspace', true);
   }
+  setHero(ev); addNode(ev);
   if (live) countLive(ev);
   addStep(ev);
   $('doing').textContent = ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); });
@@ -690,6 +717,7 @@ function tick(){
   var lab = { sleeping:['moon-stars','resting'], thinking:['lightbulb','thinking'], working:['lightning','working'], waiting:['clock','waiting'] }[mode];
   st.innerHTML = icon(lab[0]) + '<span>' + lab[1] + '</span>';
   $('since').textContent = state.lastAct ? rel(now - state.lastAct) : '';
+  $('hsince').textContent = state.lastAct ? '· ' + rel(now - state.lastAct) : '';
   var sl = $('sleep'); sl.classList.toggle('on', sleeping);
   if (sleeping) { var left = Math.floor((state.sleepUntil - now) / 1000); $('cd').textContent = pad(Math.floor(left / 60)) + ':' + pad(left % 60); }
 }
@@ -728,6 +756,30 @@ function setMusic(on){
 audio.addEventListener('ended', function(){ ti++; loadTrack(); if (musicOn) audio.play(); });
 audio.addEventListener('error', function(){ if (musicOn) { ti++; loadTrack(); audio.play().catch(function(){}); } });
 $('music').addEventListener('click', function(){ setMusic(!musicOn); });
+/* ---- hero + flow track ---- */
+var PHASE_NAME = { checkin:'Check-in', inbox:'Inbox', markets:'Markets', work:'Working', chat:'Live chat', report:'Reporting', save:'Saving', sleep:'Resting' };
+function cap1(t){ return String(t).replace(/^\\w/, function(c){ return c.toUpperCase(); }); }
+function setHero(ev){
+  var hl = $('hlabel'); hl.textContent = cap1(ev.label); hl.classList.remove('swap'); void hl.offsetWidth; hl.classList.add('swap');
+  $('hico').innerHTML = icon(ev.icon); $('hico').classList.toggle('rest', ev.phase === 'sleep');
+  $('hphase').textContent = (ev.agent ? 'Helper ' + ev.agent : (PHASE_NAME[ev.phase] || 'Working'));
+}
+var nodeCount = 0;
+function addNode(ev){
+  var tr = $('track');
+  tr.querySelectorAll('.node.cur').forEach(function(n){ n.classList.remove('cur'); n.classList.add('recent'); });
+  var n = document.createElement('div');
+  n.className = 'node cur' + (ev.term && !ev.term.failed ? ' ok' : '') + (ev.agent ? ' helper' : '');
+  n.innerHTML = '<div class="dot">' + icon(ev.icon) + '</div><div class="lab">' + esc(cap1(ev.label)) + '</div>';
+  n.title = cap1(ev.label) + ' · ' + fmt(ev.ts || Date.now());
+  tr.appendChild(n);
+  var nodes = tr.querySelectorAll('.node');
+  for (var i = 0; i < nodes.length - 7; i++) nodes[i].remove();
+  nodes = tr.querySelectorAll('.node');
+  nodes.forEach(function(x, i){ if (i < nodes.length - 3) x.classList.remove('recent'); });
+  nodeCount++;
+  $('flowsub').innerHTML = '<b>' + nodeCount + '</b> steps since you tuned in' + (ev.repo ? ' · working in <b>' + esc(ev.repo.split('/')[1]) + '</b>' : '');
+}
 /* ---- real code from GitHub for public files ---- */
 var codeCache = {};
 function showCode(f){
@@ -773,44 +825,34 @@ function loadBitcoin(){
     var pend = (x[0] || []).slice(0, 3).reverse(), mined = (x[1] || []).slice(0, 5);
     if (!mined.length) return;
     burnTip = mined[0].height;
-    if (mined[0].height === lastTip && $('chainrow').children.length) { updateAges(mined); return; }
     lastTip = mined[0].height;
-    var row = $('chainrow'), html = '';
-    pend.forEach(function(b, i){ html += '<div class="bk pend"><span class="hgt">next ' + (pend.length - i) + '</span><span>~' + Math.round(b.medianFee) + ' sat/vB</span><span>' + num(b.nTx) + ' tx</span></div>'; });
-    html += '<div class="gap"></div>';
-    mined.forEach(function(b){ html += '<div class="bk mined" data-t="' + b.timestamp + '"><span class="hgt">' + num(b.height) + '</span><span>' + num(b.tx_count) + ' tx</span><span class="ago">' + ago(b.timestamp) + '</span></div>'; });
-    row.innerHTML = html;
-    $('w-fee').textContent = 'block ' + num(mined[0].height) + ' · ' + (pend.length ? '~' + Math.round(pend[pend.length - 1].medianFee) + ' sat/vB next' : '');
+    $('t-btc').textContent = '#' + num(mined[0].height) + (pend.length ? ' · ~' + Math.round(pend[pend.length - 1].medianFee) + ' sat/vB' : '');
     loadMarket();
   }).catch(function(){});
 }
-function updateAges(){ document.querySelectorAll('#chainrow .bk.mined').forEach(function(b){ b.querySelector('.ago').textContent = ago(Number(b.dataset.t)); }); }
 function loadStacks(){
   getJSON('https://api.hiro.so/extended/v2/blocks?limit=1').then(function(d){
     var b = (d.results || [])[0]; if (!b) return;
-    $('w-stx').textContent = num(b.height);
-    $('w-stx-s').textContent = num(b.tx_count) + ' tx · ' + ago(b.block_time);
+    $('t-stx').textContent = '#' + num(b.height);
   }).catch(function(){});
 }
 function loadWallet(){
   getJSON('https://api.hiro.so/extended/v1/address/' + MAIN + '/balances').then(function(d){
     var stx = Number(d.stx && d.stx.balance || 0) / 1e6;
     var sb = d.fungible_tokens && d.fungible_tokens['SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token'];
-    $('w-wal').textContent = num(sb ? sb.balance : 0) + ' sats';
-    $('w-wal-s').textContent = 'sBTC · ' + stx.toFixed(2) + ' STX';
+    $('t-wal').textContent = num(sb ? sb.balance : 0) + ' sats sBTC · ' + stx.toFixed(2) + ' STX';
   }).catch(function(){});
 }
 function loadMarket(){
   getJSON('/world').then(function(d){
     var m = d.market; if (!m) return;
-    $('w-mkt').textContent = num(m.vaultSats || 0) + ' sats';
     var left = m.closeHeight && (m.burnHeight || burnTip) ? m.closeHeight - (m.burnHeight || burnTip) : 0;
-    $('w-mkt-s').textContent = 'escrow · closes in ~' + Math.max(0, Math.round(left * 10 / 1440)) + ' days';
-    $('w-mkt-s').title = m.title || '';
+    $('t-mkt').textContent = num(m.vaultSats || 0) + ' sats · ~' + Math.max(0, Math.round(left * 10 / 1440)) + 'd left';
+    $('t-mkt').title = m.title || '';
   }).catch(function(){});
 }
 loadBitcoin(); loadStacks(); loadWallet();
-setInterval(loadBitcoin, 30000); setInterval(loadStacks, 20000); setInterval(loadWallet, 90000); setInterval(updateAges, 15000);
+setInterval(loadBitcoin, 60000); setInterval(loadStacks, 60000); setInterval(loadWallet, 120000);
 /* ---- today's chart: ribbon of 15-minute slots + hourly stacked bars ---- */
 var PH = { work:['#ff0033','Work'], inbox:['#3ea6ff','Inbox'], markets:['#ff9f43','Markets'], chat:['#b78cff','Chat'], checkin:['#2ecc71','Check-in'], report:['#f1c40f','Report'], save:['#8a94a6','Save'] };
 var stats = { date:'', slots:{} };
