@@ -18,3 +18,11 @@ new_sqlite_classes = ["EventStream"]
 RING_SIZE = "500"
 # Turnstile site key (public). The matching secret is the TURNSTILE_SECRET worker secret.
 TURNSTILE_SITEKEY = "0x4AAAAAAGOQahf2_Y6KXbJN"
+
+# Static files (stream music). /music/* runs the Worker first so it can answer
+# Range requests, which static assets don't support (Safari needs them for media):
+# https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/music/*"]

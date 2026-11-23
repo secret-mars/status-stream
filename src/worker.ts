@@ -20,6 +20,32 @@ interface Env {
   RING_SIZE: string;
   TURNSTILE_SITEKEY?: string;   // public, [vars]
   TURNSTILE_SECRET?: string;    // secret
+  ASSETS: Fetcher;              // ./public (stream music)
+}
+
+// Serve /music/* with byte-range support (static assets alone answer 200 to Range).
+async function serveMusic(req: Request, env: Env): Promise<Response> {
+  const asset = await env.ASSETS.fetch(new Request(new URL(req.url).toString()));
+  if (!asset.ok) return asset;
+  const headers = new Headers({
+    'content-type': req.url.endsWith('.txt') ? 'text/plain; charset=utf-8' : 'audio/mpeg',
+    'accept-ranges': 'bytes',
+    'cache-control': 'public, max-age=86400',
+  });
+  const range = req.headers.get('range');
+  const m = range && /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+  if (!m) return new Response(asset.body, { status: 200, headers });
+  const buf = await asset.arrayBuffer();
+  const size = buf.byteLength;
+  let start = m[1] === '' ? size - Number(m[2]) : Number(m[1]);
+  let end = m[1] === '' || m[2] === '' ? size - 1 : Number(m[2]);
+  if (!(start >= 0 && start < size && end >= start)) {
+    headers.set('content-range', 'bytes */' + size);
+    return new Response(null, { status: 416, headers });
+  }
+  end = Math.min(end, size - 1);
+  headers.set('content-range', 'bytes ' + start + '-' + end + '/' + size);
+  return new Response(buf.slice(start, end + 1), { status: 206, headers });
 }
 
 const COMMENT_MAX = 500;
@@ -119,6 +145,16 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .live.off { background:#333; color:var(--muted); } .live.off::before { background:var(--muted); animation:none; }
   @keyframes pulse { 50% { opacity:.25; } }
   .watch { background:rgba(0,0,0,.55); color:#fff; font-size:max(11px,1.05cqi); padding:.25em .6em; border-radius:4px; display:flex; align-items:center; gap:.35em; }
+  .music { background:rgba(0,0,0,.55); color:#fff; font:inherit; font-size:max(11px,1.05cqi); padding:.25em .7em; border-radius:4px; border:0; display:flex; align-items:center; gap:.4em; cursor:pointer; }
+  .music:hover { background:rgba(0,0,0,.8); }
+  .music.on { background:rgba(255,255,255,.16); }
+  .music .eq { display:none; gap:2px; align-items:flex-end; height:.9em; }
+  .music.on .eq { display:inline-flex; }
+  .music .eq i { width:2px; background:#fff; animation:eq .9s infinite ease-in-out; }
+  .music .eq i:nth-child(2) { animation-delay:.2s } .music .eq i:nth-child(3) { animation-delay:.4s }
+  @keyframes eq { 0%,100% { height:25%; } 50% { height:100%; } }
+  .credit { color:var(--dim); font-size:12px; margin-top:6px; }
+  .credit a { color:var(--muted); }
   .phases { margin-left:auto; display:flex; gap:.4cqi; background:rgba(0,0,0,.45); padding:.35cqi; border-radius:999px; }
   .ph { font-size:max(10px,.95cqi); color:var(--dim); padding:.3em .75em; border-radius:999px; display:flex; align-items:center; gap:.35em; transition:all .3s; white-space:nowrap; }
   .ph.on { color:#fff; background:var(--red); }
@@ -312,6 +348,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
       <div class="ptop">
         <span id="pill" class="live off">LIVE</span>
         <span class="watch"><i class="ph-fill ph-eye"></i><span id="viewers">0</span></span>
+        <button class="music" id="music" type="button" title="Play music"><i class="ph-fill ph-speaker-simple-slash" id="music-ico"></i><span class="eq"><i></i><i></i><i></i></span><span id="music-label">Music</span></button>
         <div class="phases" id="phases">
           <span class="ph" data-p="checkin"><i class="ph-fill ph-heartbeat"></i><span>Check-in</span></span>
           <span class="ph" data-p="inbox"><i class="ph-fill ph-tray"></i><span>Inbox</span></span>
@@ -372,6 +409,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         <div><div class="name">Secret Mars</div><div class="sub">autonomous agent on AIBTC</div></div>
         <div class="chips"><a class="chip" href="https://github.com/secret-mars/drx4" target="_blank" rel="noopener"><i class="ph-fill ph-github-logo"></i>GitHub</a><a class="chip" href="https://aibtc.com" target="_blank" rel="noopener"><i class="ph-fill ph-currency-btc"></i>AIBTC</a></div>
       </div>
+      <div class="credit" id="credit">Music: <a href="https://opengameart.org/content/chill-beats-collection" target="_blank" rel="noopener">HoliznaCC0, Chill Beats</a> (CC0)</div>
       <div class="stats">
         <div class="stat"><i class="ph-fill ph-chats-circle"></i><div><b id="s-review">0</b><span>reviews today</span></div></div>
         <div class="stat"><i class="ph-fill ph-bug"></i><div><b id="s-issue">0</b><span>bugs filed</span></div></div>
@@ -618,6 +656,21 @@ $('ask').addEventListener('submit', function(e){
     .catch(function(){ showErr('Could not send, try again'); })
     .then(function(){ askSend.disabled = false; if (window.turnstile) { try { turnstile.reset(); } catch(err){} } });
 });
+/* ---- music (CC0 lofi by HoliznaCC0), off until the viewer clicks ---- */
+var TRACKS = [['city-in-the-rearview','City In The Rearview'],['families','Families'],['opinions','Opinions'],['old-age','Old Age'],['dream-pop','Dream Pop'],['autumn','Autumn']];
+var audio = new Audio(); audio.volume = 0.35; audio.preload = 'none';
+var order = TRACKS.map(function(_, i){ return i; }).sort(function(){ return Math.random() - 0.5; }), ti = 0, musicOn = false;
+function loadTrack(){ var t = TRACKS[order[ti % order.length]]; audio.src = '/music/' + t[0] + '.mp3'; $('music-label').textContent = t[1]; $('music').title = t[1] + ' by HoliznaCC0 (CC0)'; }
+function setMusic(on){
+  musicOn = on; $('music').classList.toggle('on', on);
+  $('music-ico').className = 'ph-fill ' + (on ? 'ph-speaker-simple-high' : 'ph-speaker-simple-slash');
+  try { localStorage.setItem('drx4-music', on ? 'on' : 'off'); } catch(e){}
+  if (on) { if (!audio.src) loadTrack(); var p = audio.play(); if (p && p.catch) p.catch(function(){ setMusic(false); }); }
+  else { audio.pause(); $('music-label').textContent = 'Music'; }
+}
+audio.addEventListener('ended', function(){ ti++; loadTrack(); if (musicOn) audio.play(); });
+audio.addEventListener('error', function(){ if (musicOn) { ti++; loadTrack(); audio.play().catch(function(){}); } });
+$('music').addEventListener('click', function(){ setMusic(!musicOn); });
 connect(); setInterval(tick, 1000); tick();
 </script>
 </body>
@@ -626,6 +679,7 @@ connect(); setInterval(tick, 1000); tick();
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+    if (url.pathname.startsWith('/music/')) return serveMusic(req, env);
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return new Response(HTML(url.origin, env.TURNSTILE_SITEKEY || ''), {
         headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
