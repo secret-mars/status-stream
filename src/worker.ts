@@ -104,7 +104,18 @@ function cleanActivity(p: any): any {
   }
   if (p.term) a.term = { passed: int(p.term.passed) ?? 0, failed: int(p.term.failed) ?? 0 };
   const until = int(p.until, 9e15); if (until) a.until = until;
+  if (typeof p.cmd === 'string' && p.cmd.trim()) a.cmd = clean(p.cmd, 300);
+  if (p.cmd_private === true) a.cmd_private = true;
   return a;
+}
+
+// Real command output (public commands only; the hook filters and redacts first).
+function cleanTerm(p: any): any {
+  const cmd = clean(p.cmd, 300);
+  if (!cmd) return null;
+  const t: any = { ts: Date.now(), kind: 'term', cmd, out: String(p.out || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, 2200) };
+  const r = repoOk(p.repo); if (r) t.repo = r;
+  return t;
 }
 
 // Alert card for something the agent just published on a public repo.
@@ -249,6 +260,22 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .ticker { display:flex; gap:18px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:10px; }
   .ticker span { display:flex; align-items:center; gap:6px; }
   .ticker i { font-size:14px; } .ticker b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
+  /* real terminal */
+  .v-term { padding:0; }
+  .termlog { flex:1; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; gap:1cqi; padding:1.4cqi 1.8cqi; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:max(10px,1.08cqi); line-height:1.5; background:#08090b; }
+  .tblock { animation:fadein .3s ease-out; }
+  .tprompt { color:#e6e6e6; white-space:pre-wrap; word-break:break-all; }
+  .tprompt .u { color:var(--green); } .tprompt .d { color:#6cb6ff; } .tprompt .s { color:#888; }
+  .tout { color:#a9b1bd; white-space:pre-wrap; word-break:break-word; margin-top:.2cqi; max-height:18cqi; overflow:hidden; }
+  .tout.run::after { content:"running"; color:var(--dim); animation:pulse 1s infinite; }
+  .tblock.old { opacity:.45; }
+  .tpriv { color:#6e7380; display:flex; align-items:center; gap:.8cqi; }
+  .tpriv i { color:#4b5160; }
+  .tnote { color:#8c93a0; display:flex; align-items:center; gap:.8cqi; }
+  .tnote i { color:var(--purple); }
+  .tok { color:var(--green); } .tbad { color:#ff6b6b; }
+  .tempty { margin:auto; color:var(--dim); display:flex; flex-direction:column; align-items:center; gap:1cqi; font-family:Roboto,sans-serif; }
+  .tempty i { font-size:4cqi; color:#2d3038; }
   /* world view */
   .v-world { flex-direction:column; gap:1.6cqi; padding:1.8cqi 2cqi; }
   .w-h { display:flex; align-items:center; gap:.7cqi; color:var(--muted); font-size:max(10px,1cqi); text-transform:uppercase; letter-spacing:.08em; }
@@ -465,10 +492,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
           <div class="pane-body">
             <div class="view v-browser" id="v-browser"><div class="ogcard" id="ogcard" style="display:none"></div><div class="gh-empty" id="gh-empty"><i class="ph-fill ph-github-logo"></i>Browsing GitHub</div></div>
             <div class="view v-editor" id="v-editor"><div class="tabs"><div class="tab"><i class="ph-fill ph-file-code"></i><span id="ed-file">file</span></div></div><div class="crumbs" id="ed-path"></div><div class="codebox" id="codebox"></div><div class="diffstat" id="ed-diff"></div></div>
-            <div class="view v-flow on" id="v-flow">
-              <div class="track" id="track"><div class="line"><div class="glow"></div></div></div>
-              <div class="flowsub" id="flowsub">Each step Secret Mars takes appears here as it happens</div>
-            </div>
+            <div class="view v-term on" id="v-term"><div class="termlog" id="termlog"><div class="tempty"><i class="ph-fill ph-terminal-window"></i>Waiting for the next command</div></div></div>
             <div class="private" id="private"><i class="ph-fill ph-lock-simple"></i><span id="private-label">Working privately</span></div>
           </div>
         </div>
@@ -563,7 +587,7 @@ function isToday(ts){ return new Date(ts).toDateString() === new Date().toDateSt
 
 /* ---- workspace panes ---- */
 function showView(name){
-  ['browser','editor','flow'].forEach(function(v){ $('v-' + v).classList.toggle('on', v === name); });
+  ['browser','editor','term'].forEach(function(v){ $('v-' + v).classList.toggle('on', v === name); });
 }
 function setPrivate(on, label){ $('private').classList.toggle('on', !!on); if (label) $('private-label').textContent = label; }
 function setUrl(text, lock){ $('urltext').textContent = text; $('urlbar').firstChild.className = 'ph-fill ' + (lock ? 'ph-lock-simple' : 'ph-globe'); }
@@ -588,9 +612,12 @@ function applyActivity(ev, live){
     if (ev.file) { showCode(ev.file); }
     else { setPrivate(true, ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); })); setUrl('private workspace', true); }
   } else {
-    showView('flow'); setUrl(ev.repo ? 'github.com/' + ev.repo : 'secret-mars workspace', true);
+    showView('term'); setUrl(ev.repo ? 'github.com/' + ev.repo : 'secret-mars workspace', true);
   }
-  setHero(ev); addNode(ev);
+  if (ev.cmd) termCmd(ev);
+  else if (ev.cmd_private) termLine('<span class="tpriv">' + icon('lock-simple') + 'private step: ' + esc(ev.label) + '</span>');
+  else if (ev.pane !== 'editor' && ev.pane !== 'browser' && !ev.term) termLine('<span class="tnote">' + icon(ev.icon) + esc(cap1(ev.label)) + '</span>');
+  setHero(ev);
   if (live) countLive(ev);
   addStep(ev);
   $('doing').textContent = ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); });
@@ -676,6 +703,7 @@ function render(ev, live){
   if (kind === 'stats') { if (ev.date && ev.slots) { stats = { date: ev.date, slots: ev.slots }; drawStats(); } return; }
   if (kind !== 'viewer' && typeof ev.ts === 'number' && ev.ts > state.lastSeen) state.lastSeen = ev.ts;
   if (kind === 'activity') { if (ev.label) applyActivity(ev, live); tick(); return; }
+  if (kind === 'term') { termOut(ev); return; }
   if (kind === 'artifact') {
     var k = 'a:' + ev.url; if (seen[k]) return; seen[k] = 1; addHighlight(ev);
     if (live) {
@@ -772,8 +800,33 @@ function setHero(ev){
   $('hico').innerHTML = icon(ev.icon); $('hico').classList.toggle('rest', ev.phase === 'sleep');
   $('hphase').textContent = (ev.agent ? 'Helper ' + ev.agent : (PHASE_NAME[ev.phase] || 'Working'));
 }
+/* real terminal log */
+function termAdd(el){
+  var log = $('termlog'); var e = log.querySelector('.tempty'); if (e) e.remove();
+  log.appendChild(el);
+  while (log.children.length > 7) log.removeChild(log.firstChild);
+  var kids = log.children; for (var i = 0; i < kids.length; i++) kids[i].classList.toggle('old', i < kids.length - 2);
+}
+function termLine(html){ var d = document.createElement('div'); d.className = 'tblock'; d.innerHTML = html; termAdd(d); }
+var lastBlock = null;
+function promptHtml(repo, cmd){ return '<span class="u">mars@stream</span><span class="s">:</span><span class="d">~/' + esc(repo ? repo.split('/')[1] : 'work') + '</span><span class="s">$</span> ' + esc(cmd); }
+function termCmd(ev){
+  var d = document.createElement('div'); d.className = 'tblock'; d.dataset.cmd = ev.cmd;
+  d.innerHTML = '<div class="tprompt">' + promptHtml(ev.repo, ev.cmd) + '</div><div class="tout run"></div>';
+  termAdd(d); lastBlock = d;
+}
+function termOut(ev){
+  showView('term');
+  var log = $('termlog'), block = null;
+  var blocks = log.querySelectorAll('.tblock'); for (var i = blocks.length - 1; i >= 0; i--) { if (blocks[i].dataset.cmd === ev.cmd) { block = blocks[i]; break; } }
+  if (!block) { block = document.createElement('div'); block.className = 'tblock'; block.dataset.cmd = ev.cmd; block.innerHTML = '<div class="tprompt">' + promptHtml(ev.repo, ev.cmd) + '</div><div class="tout"></div>'; termAdd(block); }
+  var out = block.querySelector('.tout'); out.classList.remove('run');
+  var txt = String(ev.out || '');
+  out.innerHTML = txt ? esc(txt).replace(/(\\d+ passed[^\\n]*)/g, '<span class="tok">$1</span>').replace(/(\\d+ fail(?:ed)?[^\\n]*|Error[^\\n]*)/g, '<span class="tbad">$1</span>') : '<span class="s">(no output)</span>';
+}
 var nodeCount = 0;
 function addNode(ev){
+  if (!$('track')) return;
   var tr = $('track');
   tr.querySelectorAll('.node.cur').forEach(function(n){ n.classList.remove('cur'); n.classList.add('recent'); });
   var n = document.createElement('div');
@@ -1053,11 +1106,22 @@ export class EventStream {
         if (art) this.broadcast(art);
         return new Response('ok');
       }
+      if (payload.kind === 'term') {
+        const t = cleanTerm(payload);
+        if (t) {
+          this.activity.push(t);
+          while (this.activity.length > 40) this.activity.shift();
+          this.state.storage.put('activity', this.activity).catch(() => {});
+          const msg = JSON.stringify(t);
+          for (const ws of this.state.getWebSockets()) { if (this.isFeed(ws)) continue; try { ws.send(msg); } catch {} }
+        }
+        return new Response('ok');
+      }
       if (payload.kind === 'activity') {
         const act: any = cleanActivity(payload);
         if (!act) return new Response('ok');
         this.activity.push(act);
-        this.countActivity(act);
+        if (act.kind === 'activity') this.countActivity(act);
         while (this.activity.length > 40) this.activity.shift();
         // Persist, so a deploy or eviction doesn't blank the stage for new viewers.
         this.state.storage.put('activity', this.activity).catch(() => {});
@@ -1108,7 +1172,7 @@ export class EventStream {
       for (const ev of ring) {
         try { server.send(JSON.stringify(ev)); } catch {}
       }
-      for (const act of this.activity.slice(-15)) {
+      for (const act of this.activity.slice(-24)) {
         try { server.send(JSON.stringify(act)); } catch {}
       }
       try { server.send(JSON.stringify({ ts: Date.now(), kind: 'stats', date: this.stats.date, slots: this.stats.slots })); } catch {}
