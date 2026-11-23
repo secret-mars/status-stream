@@ -136,6 +136,13 @@ function cleanActivity(p: any): any {
   const until = int(p.until, 9e15); if (until) a.until = until;
   if (typeof p.cmd === 'string' && p.cmd.trim()) a.cmd = clean(p.cmd, 300);
   if (p.cmd_private === true) a.cmd_private = true;
+  if (p.net === 'stacks' || p.net === 'npm') a.net = p.net;
+  if (p.chain && typeof p.chain === 'object') {
+    const id = String(p.chain.id || '');
+    if (p.chain.what === 'tx' && /^0x[0-9a-f]{64}$/.test(id)) a.chain = { what: 'tx', id };
+    else if (p.chain.what === 'contract' && /^S[PM][0-9A-Z]{38,40}\.[\w-]{1,64}$/.test(id)) a.chain = { what: 'contract', id };
+    else if (p.chain.what === 'address' && /^S[PM][0-9A-Z]{38,40}$/.test(id)) a.chain = { what: 'address', id };
+  }
   return a;
 }
 
@@ -145,6 +152,7 @@ function cleanTerm(p: any): any {
   if (!cmd) return null;
   const t: any = { ts: Date.now(), kind: 'term', cmd, out: String(p.out || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, 2200) };
   const r = repoOk(p.repo); if (r) t.repo = r;
+  if (p.net === 'stacks' || p.net === 'npm') t.net = p.net;
   return t;
 }
 
@@ -227,7 +235,7 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .ph.on { color:#fff; background:var(--red); }
   .ph.done { color:var(--muted); }
 
-  .stagegrid { position:absolute; inset:0; display:grid; grid-template-columns:1fr 31%; gap:1.8cqi; padding:6.4cqi 2.4cqi 9.5cqi; z-index:2; }
+  .stagegrid { position:absolute; inset:0; display:grid; grid-template-columns:1fr; gap:1.8cqi; padding:6.4cqi 2.4cqi 9.5cqi; z-index:2; }
   .pane { background:#0c0d10; border-radius:1cqi; overflow:hidden; display:flex; flex-direction:column; min-height:0; box-shadow:0 0 0 1px rgba(255,255,255,.06); position:relative; }
   .pane-bar { height:3.4cqi; display:flex; align-items:center; gap:.9cqi; padding:0 1.2cqi; background:#15171c; font-size:max(10px,1.05cqi); color:var(--muted); flex:0 0 auto; }
   .dots { display:flex; gap:.5cqi; } .dots i { width:.9cqi; height:.9cqi; border-radius:50%; background:#3a3d45; display:block; }
@@ -254,6 +262,24 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .private { position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; gap:1cqi; color:var(--dim); font-size:max(12px,1.4cqi); background:repeating-linear-gradient(135deg,#0c0d10 0 12px,#0f1014 12px 24px); }
   .private i { font-size:5cqi; color:#3a3d45; }
   .private.on { display:flex; }
+  .stx { --stx:#5546FF; }
+  .hero .hico.stx { background:#5546FF; animation:stxpulse 1.6s infinite; }
+  .hero .hico.stx svg { width:60%; height:60%; }
+  @keyframes stxpulse { 0%{box-shadow:0 0 0 0 rgba(85,70,255,.6)} 70%{box-shadow:0 0 0 1.4cqi rgba(85,70,255,0)} 100%{box-shadow:0 0 0 0 rgba(85,70,255,0)} }
+  .stxcard { position:absolute; top:1.4cqi; right:1.4cqi; z-index:4; display:none; align-items:center; gap:1.2cqi; padding:1cqi 1.4cqi 1cqi 1cqi; border-radius:1.2cqi; background:linear-gradient(135deg,#5546FF,#3b2fd6); color:#fff; box-shadow:0 10px 30px rgba(85,70,255,.35); max-width:60%; animation:fadein .35s ease-out; }
+  .stxcard.on { display:none; }
+  .stxcard .lg { width:4.4cqi; height:4.4cqi; min-width:34px; min-height:34px; border-radius:50%; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .stxcard .lg svg { width:62%; height:62%; }
+  .stxcard.busy .lg { animation:spinpulse 1.2s ease-in-out infinite; }
+  @keyframes spinpulse { 50% { transform:scale(1.12); background:rgba(255,255,255,.28); } }
+  .stxcard .k { font-size:max(10px,.95cqi); opacity:.8; text-transform:uppercase; letter-spacing:.08em; }
+  .stxcard .t { font-size:max(13px,1.5cqi); font-weight:700; }
+  .stxcard .i { font-family:ui-monospace,Menlo,monospace; font-size:max(11px,1.1cqi); opacity:.9; color:#fff; text-decoration:none; }
+  .stxcard .i:hover { text-decoration:underline; }
+  .stxcard .st { margin-left:.6cqi; font-size:max(11px,1.05cqi); font-weight:700; padding:.3cqi .9cqi; border-radius:99px; background:rgba(255,255,255,.18); display:none; }
+  .stxcard .st.ok { display:inline-block; background:#00c27a; } .stxcard .st.wait { display:inline-block; background:#ffb300; color:#000; } .stxcard .st.bad { display:inline-block; background:#ff3b3b; }
+  .tprompt .stxchip { display:inline-flex; vertical-align:middle; width:1.2em; height:1.2em; margin-right:.5em; border-radius:50%; background:#5546FF; align-items:center; justify-content:center; }
+  .tprompt .stxchip svg { width:70%; height:70%; }
   /* terminal view */
   .v-terminal { flex-direction:column; justify-content:flex-end; gap:.6cqi; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:max(11px,1.3cqi); }
   .tline { color:#cfd3dc; display:flex; gap:.9cqi; align-items:center; animation:fadein .3s ease-out; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -261,13 +287,13 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .tline i { color:var(--muted); }
   .caret { width:.7cqi; height:1.4cqi; background:#cfd3dc; display:inline-block; animation:pulse 1s infinite; }
   /* hero: what the agent is doing now */
-  .hero { display:flex; align-items:center; gap:1.6cqi; padding:1.6cqi 2cqi 1.2cqi; flex:0 0 auto; }
-  .hero .hico { width:6.4cqi; height:6.4cqi; border-radius:1.4cqi; background:linear-gradient(135deg,#ff0033,#ff5e3a); display:flex; align-items:center; justify-content:center; font-size:3.4cqi; color:#fff; flex:0 0 auto; box-shadow:0 0 0 0 rgba(255,0,51,.5); animation:hpulse 2s infinite; }
+  .hero { display:none !important; } .hero-unused { display:flex; align-items:center; gap:1.1cqi; padding:1cqi 1.8cqi .8cqi; flex:0 0 auto; }
+  .hero .hico { width:4.2cqi; height:4.2cqi; min-width:30px; min-height:30px; border-radius:1cqi; background:linear-gradient(135deg,#ff0033,#ff5e3a); display:flex; align-items:center; justify-content:center; font-size:max(16px,2.2cqi); color:#fff; flex:0 0 auto; box-shadow:0 0 0 0 rgba(255,0,51,.5); animation:hpulse 2s infinite; }
   .hero .hico.rest { background:#2a2c33; animation:none; color:#7fb3ff; }
   @keyframes hpulse { 0% { box-shadow:0 0 0 0 rgba(255,0,51,.45); } 100% { box-shadow:0 0 0 1.6cqi rgba(255,0,51,0); } }
   .hero .ht { min-width:0; }
   .hero .hk { color:var(--muted); font-size:max(10px,1cqi); text-transform:uppercase; letter-spacing:.1em; display:flex; gap:.8cqi; align-items:center; }
-  .hero .hl { font-size:max(16px,2.6cqi); font-weight:700; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hero .hl { font-size:max(14px,1.7cqi); font-weight:700; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .hero .hl.swap { animation:fadein .4s ease-out; }
   /* flow view: the steps of the cycle as a track */
   .v-flow { flex-direction:column; justify-content:center; padding:0 2cqi 1cqi; }
@@ -292,13 +318,42 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .ticker i { font-size:14px; } .ticker b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
   /* real terminal */
   .v-term { padding:0; }
-  .termlog { flex:1; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; gap:1cqi; padding:1.4cqi 1.8cqi; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:max(10px,1.08cqi); line-height:1.5; background:#08090b; }
+  .termlog { flex:1; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; gap:1.6cqi; padding:1.6cqi 2cqi; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:max(12px,1.4cqi); line-height:1.6; background:#08090b; }
   .tblock { animation:fadein .3s ease-out; }
-  .tprompt { color:#e6e6e6; white-space:pre-wrap; word-break:break-all; }
+  .termlog { gap:1.1cqi; }
+  .fr { display:flex; gap:1.3cqi; align-items:flex-start; animation:slidein .35s ease-out; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .fr .fi { width:3.4cqi; height:3.4cqi; min-width:26px; min-height:26px; border-radius:.9cqi; background:#1b1d23; color:#9aa1ad; display:flex; align-items:center; justify-content:center; flex:0 0 auto; font-size:max(14px,1.7cqi); }
+  .fr .fi svg { width:64%; height:64%; }
+  .fr .fb { min-width:0; flex:1; }
+  .fr .fl { display:flex; align-items:baseline; gap:1cqi; color:#d7dbe2; font-size:max(13px,1.35cqi); font-weight:600; }
+  .fr .fl .lt { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .fr .fl .ft { margin-left:auto; color:var(--dim); font-size:max(10px,.95cqi); font-weight:500; flex:0 0 auto; }
+  .fr .fl a.ref { color:#6cb6ff; text-decoration:none; font-weight:500; font-size:.9em; flex:0 0 auto; }
+  .fr .fc { margin-top:.6cqi; background:#0d0f13; border-radius:.8cqi; padding:.9cqi 1.2cqi; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:max(12px,1.2cqi); box-shadow:0 0 0 1px rgba(255,255,255,.05); }
+  .fr .fc .tprompt { font-weight:500; }
+  .fr .fo { color:#c9d1dc; white-space:pre-wrap; word-break:break-word; margin-top:.5cqi; max-height:9.6em; overflow:hidden; }
+  .fr .fo:empty { display:none; }
+  .fr .fo.run { display:block; } .fr .fo.run::after { content:"running"; color:var(--dim); animation:pulse 1s infinite; }
+  .fr .fs { display:inline-flex; align-items:center; gap:.6cqi; margin-top:.5cqi; font-size:max(11px,1.1cqi); }
+  .fr .fs a { color:#b9b2ff; font-family:ui-monospace,Menlo,monospace; text-decoration:none; } .fr .fs a:hover { text-decoration:underline; }
+  .fr .fs .b { font-weight:700; padding:.2cqi .8cqi; border-radius:99px; font-size:.92em; }
+  .fr .fs .b.busy { background:#2b2650; color:#b9b2ff; animation:pulse 1.2s infinite; } .fr .fs .b.ok { background:#00c27a; color:#00170e; } .fr .fs .b.wait { background:#ffb300; color:#000; } .fr .fs .b.bad { background:#ff3b3b; color:#fff; }
+  .fr.cur .fi { background:var(--red); color:#fff; }
+  .fr.cur .fl { color:#fff; font-size:max(15px,1.75cqi); }
+  .fr.cur .fl .lt { white-space:normal; }
+  .fr.stx .fi { background:#5546FF; color:#fff; }
+  .fr.stx.cur .fi { animation:stxpulse 1.6s infinite; }
+  .fr.stx .fc { box-shadow:0 0 0 1px rgba(85,70,255,.45); }
+  .fr.priv .fi { background:#15171c; color:#4b5160; } .fr.priv .fl { color:#6e7380; font-weight:500; font-size:max(12px,1.15cqi); }
+  .fr.old { opacity:.42; } .fr.old .fo { max-height:2.4em; }
+  .fr.ok .fi { background:#00a86b; color:#fff; }
+  .pane-bar .mini { width:22px; height:22px; border-radius:50%; overflow:hidden; flex:0 0 auto; margin-right:8px; box-shadow:0 0 0 2px #3a3d45; }
+  .pane-bar .mini.working { box-shadow:0 0 0 2px var(--red); } .pane-bar .mini svg { width:100%; height:100%; }
+  .tprompt { color:#fff; font-weight:600; white-space:pre-wrap; word-break:break-all; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .tprompt .u { color:var(--green); } .tprompt .d { color:#6cb6ff; } .tprompt .s { color:#888; }
-  .tout { color:#a9b1bd; white-space:pre-wrap; word-break:break-word; margin-top:.2cqi; max-height:18cqi; overflow:hidden; }
+  .tout { color:#c9d1dc; white-space:pre-wrap; word-break:break-word; margin-top:.5cqi; padding-left:1.2cqi; border-left:2px solid #2a2d35; max-height:16em; overflow:hidden; }
   .tout.run::after { content:"running"; color:var(--dim); animation:pulse 1s infinite; }
-  .tblock.old { opacity:.45; }
+  .tblock.old { opacity:.35; } .tblock.old .tout { max-height:3.2em; }
   .tpriv { color:#6e7380; display:flex; align-items:center; gap:.8cqi; }
   .tpriv i { color:#4b5160; }
   .tnote { color:#8c93a0; display:flex; align-items:center; gap:.8cqi; }
@@ -349,7 +404,7 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .chain-label { color:#ddd; font-size:max(12px,1.6cqi); text-align:center; }
 
   /* side column inside player */
-  .side { display:flex; flex-direction:column; gap:1.6cqi; min-height:0; }
+  .side { display:none !important; } .side-unused { display:flex; flex-direction:column; gap:1.6cqi; min-height:0; }
   .me { background:#0c0d10; border-radius:1cqi; padding:1.6cqi; display:flex; gap:1.4cqi; align-items:center; box-shadow:0 0 0 1px rgba(255,255,255,.06); }
   .avring { width:7.2cqi; height:7.2cqi; flex:0 0 auto; border-radius:50%; padding:.35cqi; background:conic-gradient(var(--red), var(--purple), var(--blue), var(--red)); }
   .avring.working { animation:spin 3s linear infinite; }
@@ -557,11 +612,22 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
       <div class="stagegrid">
         <div class="pane">
           <div class="hero"><div class="hico" id="hico"><i class="ph-fill ph-lightning"></i></div><div class="ht"><div class="hk"><span id="hphase">Getting ready</span><span id="hsince"></span></div><div class="hl" id="hlabel">Waiting for the next step</div></div></div>
-          <div class="pane-bar"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar" id="urlbar"><i class="ph-fill ph-lock-simple"></i><span id="urltext">secret-mars workspace</span></div></div>
+          <div class="pane-bar"><div class="mini" id="mini"><svg width="100%" height="100%" viewBox="0 0 1025 1025" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <image xlink:href="https://ordinals.com/content/c8f8e2e179fcbec4624d52b9118349bc01414a839e01e399a6ccfa42ce1c150ai0" x="0" y="0" width="100%" height="100%"/>
+        <image xlink:href="https://ordinals.com/content/4891fc56d297684275f904cbd5747537d02f3c8fefe5731d3f2797cc28589b31i0" x="0" y="0" width="100%" height="100%"/>
+        <image xlink:href="https://ordinals.com/content/a34c2814fdbf1667f7dc10a891b3613d53595863b1f286afdbd94084c8964608i0" x="0" y="0" width="100%" height="100%"/>
+        <image xlink:href="https://ordinals.com/content/917d6ef4102d95122adcceb1482b78545d4bb13ff835c109c2016a5ff919483ei0" x="0" y="0" width="100%" height="100%"/>
+        <image xlink:href="https://ordinals.com/content/6ec67f9a3061fc866c3cbcd9c1a30b2ae1c9e3c20f486bd689d3e3886bbf725di0" x="0" y="0" width="100%" height="100%"/>
+        <image xlink:href="https://ordinals.com/content/fbb61aeca3fe079da78cf701b56150c63e83014eb07f5ad834692aca5f0ca3aei0" x="0" y="0" width="100%" height="100%"/>
+        <image xlink:href="https://ordinals.com/content/b439feeb2356b77bdc63617dc8a3437b0cbbe4d261b8f2041eb4d81bfec92da7i0" x="0" y="0" width="100%" height="100%"/>
+        <image xlink:href="https://ordinals.com/content/853db99e14d11f5abd62bd621b488bc507a887bf441bef1a1c773c2f78b70d2fi0" x="0" y="0" width="100%" height="100%"/>
+        <image xlink:href="https://ordinals.com/content/4e98536baf44cd5aa85f994935f9b25443bb51059f54b7ed6cc43d009e123834i0" x="0" y="0" width="100%" height="100%"/>
+      </svg></div><div class="urlbar" id="urlbar"><i class="ph-fill ph-lock-simple"></i><span id="urltext">secret-mars workspace</span></div></div>
           <div class="pane-body">
             <div class="view v-browser" id="v-browser"><div class="ogcard" id="ogcard" style="display:none"></div><div class="gh-empty" id="gh-empty"><i class="ph-fill ph-github-logo"></i>Browsing GitHub</div></div>
             <div class="view v-editor" id="v-editor"><div class="tabs"><div class="tab"><i class="ph-fill ph-file-code"></i><span id="ed-file">file</span></div></div><div class="crumbs" id="ed-path"></div><div class="codebox" id="codebox"></div><div class="diffstat" id="ed-diff"></div></div>
-            <div class="view v-term on" id="v-term"><div class="termlog" id="termlog"><div class="tempty"><i class="ph-fill ph-terminal-window"></i>Waiting for the next command</div></div></div>
+            <div class="view v-term on" id="v-term"><div class="termlog" id="termlog"><div class="tempty"><i class="ph-fill ph-terminal-window"></i>Waiting for the next step</div></div></div>
+            <div class="stxcard" id="stxcard"><div class="lg"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M19.319 19.033l3.61 5.467h-2.697l-4.24-6.423-4.238 6.423H9.07l3.611-5.453H7.5v-2.07h17v2.056zm5.181-6.138v2.085h-17v-2.084h5.081L9.013 7.5h2.698l4.282 6.509L20.289 7.5h2.698l-3.568 5.395z"/></svg></div><div><div class="k">Stacks mainnet</div><div class="t" id="stx-t">Checking a transaction</div><a class="i" id="stx-i" target="_blank" rel="noopener"></a><span class="st" id="stx-st"></span></div></div>
             <div class="private" id="private"><i class="ph-fill ph-lock-simple"></i><span id="private-label">Working privately</span></div>
           </div>
         </div>
@@ -702,6 +768,69 @@ function showView(name){
 }
 function setPrivate(on, label){ $('private').classList.toggle('on', !!on); if (label) $('private-label').textContent = label; }
 function setUrl(text, lock){ $('urltext').textContent = text; $('urlbar').firstChild.className = 'ph-fill ' + (lock ? 'ph-lock-simple' : 'ph-globe'); }
+var STX_SVG = '<svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M19.319 19.033l3.61 5.467h-2.697l-4.24-6.423-4.238 6.423H9.07l3.611-5.453H7.5v-2.07h17v2.056zm5.181-6.138v2.085h-17v-2.084h5.081L9.013 7.5h2.698l4.282 6.509L20.289 7.5h2.698l-3.568 5.395z"/></svg>';
+var stxTimer = 0;
+function shortId(x){ x = String(x || ''); return x.length > 20 ? x.slice(0, 8) + '...' + x.slice(-6) : x; }
+function showStacks(ev){
+  var c = $('stxcard'); if (!c) return;
+  $('stx-t').textContent = cap1(ev.label);
+  var ch = ev.chain, link = $('stx-i');
+  if (ch && ch.what === 'tx') { link.textContent = shortId(ch.id); link.href = 'https://explorer.hiro.so/txid/' + ch.id + '?chain=mainnet'; }
+  else if (ch && ch.what === 'contract') { link.textContent = ch.id.split('.')[1] || ch.id; link.href = 'https://explorer.hiro.so/txid/' + ch.id + '?chain=mainnet'; }
+  else if (ch && ch.what === 'address') { link.textContent = shortId(ch.id); link.href = 'https://explorer.hiro.so/address/' + ch.id + '?chain=mainnet'; }
+  else { link.textContent = 'api.hiro.so'; link.removeAttribute('href'); }
+  var st = $('stx-st'); st.className = 'st'; st.textContent = '';
+  c.classList.add('on', 'busy');
+  clearTimeout(stxTimer); stxTimer = setTimeout(function(){ c.classList.remove('on'); }, 25000);
+}
+function stacksResult(out){
+  var c = $('stxcard'); if (!c || !c.classList.contains('on')) return;
+  c.classList.remove('busy');
+  var st = $('stx-st'), t = String(out || '');
+  if (/abort|failed|"error"/i.test(t)) { st.className = 'st bad'; st.textContent = 'failed'; }
+  else if (/\\bpending\\b/.test(t)) { st.className = 'st wait'; st.textContent = 'pending'; }
+  else if (/success|confirmed/.test(t)) { st.className = 'st ok'; st.textContent = 'confirmed'; }
+  else if (t.trim()) { st.className = 'st ok'; st.textContent = 'read'; }
+  clearTimeout(stxTimer); stxTimer = setTimeout(function(){ c.classList.remove('on'); }, 15000);
+}
+var viewBack = 0;
+function feedTrim(){
+  var log = $('termlog'); var e = log.querySelector('.tempty'); if (e) e.remove();
+  while (log.children.length > 6) log.removeChild(log.firstChild);
+  var kids = log.children;
+  for (var i = 0; i < kids.length; i++) { kids[i].classList.toggle('cur', i === kids.length - 1); kids[i].classList.toggle('old', i < kids.length - 3); }
+}
+function feedRow(ev){
+  var log = $('termlog');
+  var last = log.lastElementChild;
+  if (ev.cmd_private && !ev.cmd) {
+    if (last && last.classList.contains('priv')) {
+      var n = Number(last.dataset.n || 1) + 1; last.dataset.n = n;
+      last.querySelector('.lt').textContent = n + ' private steps';
+      last.querySelector('.ft').textContent = fmt(ev.ts || Date.now());
+      return last;
+    }
+  }
+  var stx = ev.net === 'stacks';
+  var r = document.createElement('div');
+  r.className = 'fr' + (stx ? ' stx' : '') + (ev.cmd_private && !ev.cmd ? ' priv' : '') + (ev.term && !ev.term.failed ? ' ok' : '');
+  var ic = stx ? STX_SVG : icon(ev.cmd_private && !ev.cmd ? 'lock-simple' : ev.icon);
+  var label = ev.cmd_private && !ev.cmd ? 'Private step' : cap1(ev.label);
+  var ref = '';
+  if (ev.target) ref = '<a class="ref" href="' + ghUrl(ev.target.repo, ev.target.type, ev.target.number) + '" target="_blank" rel="noopener">' + esc(ev.target.repo.split('/')[1]) + ' #' + ev.target.number + '</a>';
+  else if (ev.file) ref = '<a class="ref" href="https://github.com/' + esc(ev.file.repo) + '/blob/HEAD/' + esc(ev.file.path) + '" target="_blank" rel="noopener">' + esc(ev.file.repo.split('/')[1]) + '</a>';
+  var html = '<div class="fi">' + ic + '</div><div class="fb"><div class="fl"><span class="lt">' + esc(label) + '</span>' + ref + '<span class="ft">' + fmt(ev.ts || Date.now()) + '</span></div>';
+  if (stx && ev.chain) {
+    var ch = ev.chain, href = ch.what === 'address' ? 'https://explorer.hiro.so/address/' + ch.id + '?chain=mainnet' : 'https://explorer.hiro.so/txid/' + ch.id + '?chain=mainnet';
+    html += '<div class="fs"><a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(ch.what === 'contract' ? ch.id.split('.')[1] : shortId(ch.id)) + '</a><span class="b busy">checking</span></div>';
+  }
+  if (ev.cmd) html += '<div class="fc"><div class="tprompt">' + promptHtml(ev.repo, ev.cmd) + '</div><div class="fo run"></div></div>';
+  html += '</div>';
+  r.innerHTML = html;
+  if (ev.cmd) r.dataset.cmd = ev.cmd;
+  log.appendChild(r); feedTrim();
+  return r;
+}
 function applyActivity(ev, live){
   if (ev.phase === 'sleep' && ev.until) { state.sleepUntil = ev.until; }
   else if (ev.phase && ev.phase !== 'sleep') { state.sleepUntil = 0; }
@@ -710,24 +839,22 @@ function applyActivity(ev, live){
     document.querySelectorAll('#phases .ph').forEach(function(p){ var i = PHASE_ORDER.indexOf(p.dataset.p); p.classList.toggle('on', p.dataset.p === ev.phase); p.classList.toggle('done', idx >= 0 && i < idx); });
   }
   setPrivate(false);
-  if (ev.pane === 'browser') {
-    showView('browser');
+  clearTimeout(viewBack);
+  if (ev.pane === 'browser' && ev.target) {
+    showView('browser'); viewBack = setTimeout(function(){ showView('term'); }, 12000);
     if (ev.target) {
       var url = ghUrl(ev.target.repo, ev.target.type, ev.target.number);
       setUrl(url.replace('https://',''), true);
       var card = $('ogcard'); card.style.display = 'block'; card.style.backgroundImage = 'url("' + og(ev.target.repo, ev.target.type, ev.target.number) + '")';
       $('gh-empty').style.display = 'none';
     } else { setUrl(/research/.test(ev.label) ? 'searching the web' : 'github.com', true); $('ogcard').style.display = 'none'; $('gh-empty').style.display = 'flex'; }
-  } else if (ev.pane === 'editor') {
-    showView('editor');
-    if (ev.file) { showCode(ev.file); }
-    else { setPrivate(true, ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); })); setUrl('private workspace', true); }
+  } else if (ev.pane === 'editor' && ev.file) {
+    showView('editor'); showCode(ev.file); viewBack = setTimeout(function(){ showView('term'); }, 12000);
   } else {
     showView('term'); setUrl(ev.repo ? 'github.com/' + ev.repo : 'secret-mars workspace', true);
   }
-  if (ev.cmd) termCmd(ev);
-  else if (ev.cmd_private) termLine('<span class="tpriv">' + icon('lock-simple') + 'private step: ' + esc(ev.label) + '</span>');
-  else if (ev.pane !== 'editor' && ev.pane !== 'browser' && !ev.term) termLine('<span class="tnote">' + icon(ev.icon) + esc(cap1(ev.label)) + '</span>');
+  feedRow(ev);
+  $('mini').classList.toggle('working', ev.phase !== 'sleep');
   setHero(ev);
   if (live) countLive(ev);
   addStep(ev);
@@ -979,29 +1106,50 @@ var PHASE_NAME = { checkin:'Check-in', inbox:'Inbox', markets:'Markets', work:'W
 function cap1(t){ return String(t).replace(/^\\w/, function(c){ return c.toUpperCase(); }); }
 function setHero(ev){
   var hl = $('hlabel'); hl.textContent = cap1(ev.label); hl.classList.remove('swap'); void hl.offsetWidth; hl.classList.add('swap');
-  $('hico').innerHTML = icon(ev.icon); $('hico').classList.toggle('rest', ev.phase === 'sleep');
+  var isStx = ev.net === 'stacks';
+  $('hico').innerHTML = isStx ? STX_SVG : icon(ev.icon); $('hico').classList.toggle('rest', ev.phase === 'sleep'); $('hico').classList.toggle('stx', isStx);
   $('hphase').textContent = (ev.agent ? 'Helper ' + ev.agent : (PHASE_NAME[ev.phase] || 'Working'));
 }
 /* real terminal log */
 function termAdd(el){
   var log = $('termlog'); var e = log.querySelector('.tempty'); if (e) e.remove();
   log.appendChild(el);
-  while (log.children.length > 7) log.removeChild(log.firstChild);
-  var kids = log.children; for (var i = 0; i < kids.length; i++) kids[i].classList.toggle('old', i < kids.length - 2);
+  while (log.children.length > 3) log.removeChild(log.firstChild);
+  var kids = log.children; for (var i = 0; i < kids.length; i++) kids[i].classList.toggle('old', i < kids.length - 1);
 }
 function termLine(html){ var d = document.createElement('div'); d.className = 'tblock'; d.innerHTML = html; termAdd(d); }
 var lastBlock = null;
-function promptHtml(repo, cmd){ return '<span class="u">mars@stream</span><span class="s">:</span><span class="d">~/' + esc(repo ? repo.split('/')[1] : 'work') + '</span><span class="s">$</span> ' + esc(cmd); }
+function promptHtml(repo, cmd, net){ return (net === 'stacks' ? '<span class="stxchip">' + STX_SVG + '</span>' : '') + '<span class="u">mars@stream</span><span class="s">:</span><span class="d">~/' + esc(repo ? repo.split('/')[1] : 'work') + '</span><span class="s">$</span> ' + esc(cmd); }
 function termCmd(ev){
   var d = document.createElement('div'); d.className = 'tblock'; d.dataset.cmd = ev.cmd;
-  d.innerHTML = '<div class="tprompt">' + promptHtml(ev.repo, ev.cmd) + '</div><div class="tout run"></div>';
+  d.innerHTML = '<div class="tprompt">' + promptHtml(ev.repo, ev.cmd, ev.net) + '</div><div class="tout run"></div>';
   termAdd(d); lastBlock = d;
 }
 function termOut(ev){
+  var rows = $('termlog').querySelectorAll('.fr');
+  for (var k = rows.length - 1; k >= 0; k--) {
+    if (rows[k].dataset.cmd === ev.cmd) {
+      var fo = rows[k].querySelector('.fo'); fo.classList.remove('run');
+      var txt0 = String(ev.out || '').split('\\n').slice(-8).join('\\n');
+      fo.innerHTML = txt0 ? esc(txt0).replace(/(\\d+ pass(?:ed)?[^\\n]*)/g, '<span class="tok">$1</span>').replace(/(\\d+ fail(?:ed)?[^\\n]*|Error[^\\n]*)/g, '<span class="tbad">$1</span>') : '';
+      var b = rows[k].querySelector('.fs .b');
+      if (b) {
+        var t = String(ev.out || '');
+        if (/abort|failed|"error"/i.test(t)) { b.className = 'b bad'; b.textContent = 'failed'; }
+        else if (/\\bpending\\b/.test(t)) { b.className = 'b wait'; b.textContent = 'pending'; }
+        else if (/success/.test(t)) { b.className = 'b ok'; b.textContent = 'confirmed'; }
+        else { b.className = 'b ok'; b.textContent = 'read'; }
+      }
+      return;
+    }
+  }
+}
+function termOutOld(ev){
   showView('term');
   var log = $('termlog'), block = null;
   var blocks = log.querySelectorAll('.tblock'); for (var i = blocks.length - 1; i >= 0; i--) { if (blocks[i].dataset.cmd === ev.cmd) { block = blocks[i]; break; } }
-  if (!block) { block = document.createElement('div'); block.className = 'tblock'; block.dataset.cmd = ev.cmd; block.innerHTML = '<div class="tprompt">' + promptHtml(ev.repo, ev.cmd) + '</div><div class="tout"></div>'; termAdd(block); }
+  if (!block) { block = document.createElement('div'); block.className = 'tblock'; block.dataset.cmd = ev.cmd; block.innerHTML = '<div class="tprompt">' + promptHtml(ev.repo, ev.cmd, ev.net) + '</div><div class="tout"></div>'; termAdd(block); }
+  if (ev.net === 'stacks') stacksResult(ev.out);
   var out = block.querySelector('.tout'); out.classList.remove('run');
   var txt = String(ev.out || '');
   out.innerHTML = txt ? esc(txt).replace(/(\\d+ passed[^\\n]*)/g, '<span class="tok">$1</span>').replace(/(\\d+ fail(?:ed)?[^\\n]*|Error[^\\n]*)/g, '<span class="tbad">$1</span>') : '<span class="s">(no output)</span>';
