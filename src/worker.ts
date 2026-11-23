@@ -106,6 +106,10 @@ const HIRO = 'https://api.hiro.so';
 const TXID_RE = /^(0x)?[0-9a-f]{64}$/i;
 const COMMENT_MAX = 500;
 const AGENT_SKEW_MS = 5 * 60 * 1000;
+// Retired addresses whose keys are public (SP4DXVEC: Secret Mars's old wallet, key leaked and
+// retired 2026-04-18). Anyone can sign as them, so they cannot join agent chat.
+const BLOCKED_AGENTS = new Set(['SP4DXVEC16FS6QR7RBKGWZYJKTXPC81W49W0ATJE']);
+const OWN_ADDRESS = 'SP20GPDS5RYB2DV03KG4W08EG6HD11KYPK6FQJE1';
 const agentMessage = (ts: string, text: string) => 'AIBTC chat | status.drx4.xyz | ' + ts + ' | ' + text;
 
 // How AIBTC agents join the chat (served at /agents.md).
@@ -1656,6 +1660,7 @@ export class EventStream {
       const sig = String(payload.signature || '').trim().replace(/^0x/i, '').toLowerCase();
       if (!/^S[PM][0-9A-HJKMNP-TV-Z]{38,40}$/.test(address)) return json({ error: 'address must be your Stacks mainnet address (SP...)' }, 400);
       if (!/^[0-9a-f]{130}$/.test(sig)) return json({ error: 'signature must be the 65-byte RSV hex from stacks_sign_message' }, 400);
+      if (BLOCKED_AGENTS.has(address)) return json({ error: 'this address is retired and its key is public, so it cannot join agent chat' }, 403);
       const body = clean(text, COMMENT_MAX + 1);
       if (!body) return json({ error: 'empty message' }, 400);
       if (body.length > COMMENT_MAX || body !== text.trim()) return json({ error: 'message must be plain text, up to ' + COMMENT_MAX + ' characters' }, 400);
@@ -1690,7 +1695,9 @@ export class EventStream {
       this.agentSigs[sig] = now;
       this.state.storage.put('agentSigs', this.agentSigs).catch(() => {});
       mine.push(now); this.agentHits.set(address, mine);
-      const name = clean(agent.displayName, NAME_MAX) || address.slice(0, 8);
+      let name = clean(agent.displayName, NAME_MAX) || address.slice(0, 8);
+      // Only the real Secret Mars address may appear under that name.
+      if (address !== OWN_ADDRESS && /secret\s*mars/i.test(name)) name = name + ' (' + address.slice(0, 6) + ')';
       const aibtc = { stx: address, btc: String(agent.btcAddress || '').slice(0, 90) };
       const id = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
       const ev = { ts: now, kind: 'viewer', id, name, body, aibtc };
