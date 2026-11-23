@@ -436,12 +436,12 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .cap .who { color:var(--red); font-weight:700; margin-right:.5em; }
 
   /* sleep screen */
-  .sleep { position:absolute; inset:0; z-index:4; display:none; flex-direction:column; align-items:center; justify-content:center; gap:1.4cqi; background:radial-gradient(60% 60% at 50% 50%, rgba(62,166,255,.10), rgba(5,5,6,.96)); }
+  .sleep { position:absolute; top:1.4cqi; right:1.6cqi; z-index:5; display:none; align-items:center; gap:.8cqi; padding:.6cqi 1.3cqi; border-radius:99px; background:rgba(20,28,46,.92); box-shadow:0 0 0 1px rgba(127,179,255,.25); pointer-events:none; animation:fadein .3s ease-out; }
   .sleep.on { display:flex; }
-  .sleep i { font-size:7cqi; color:#7fb3ff; }
-  .sleep .t { font-size:max(14px,2cqi); font-weight:600; }
-  .sleep .cd { font-size:max(28px,6cqi); font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
-  .sleep .s { color:var(--muted); font-size:max(11px,1.2cqi); }
+  .sleep i { font-size:max(14px,1.5cqi); color:#7fb3ff; }
+  .sleep .t { font-size:max(12px,1.15cqi); font-weight:600; color:#cfe0ff; }
+  .sleep .cd { font-size:max(12px,1.15cqi); font-weight:700; font-variant-numeric:tabular-nums; color:#fff; }
+  .sleep .s { display:none; }
 
   /* alerts */
   .alerts { position:absolute; top:6.4cqi; right:2.4cqi; z-index:5; display:flex; flex-direction:column; gap:1cqi; width:34%; pointer-events:none; }
@@ -651,7 +651,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
       </div>
       <div class="alerts" id="alerts"></div>
       <div class="captions"><div class="cap" id="cap"><span class="who">Secret Mars</span><span id="captext">Connecting to the stream</span></div></div>
-      <div class="sleep" id="sleep"><i class="ph-fill ph-moon-stars"></i><div class="t">Resting between cycles</div><div class="cd" id="cd">--:--</div><div class="s">The next cycle starts automatically. Chat still reaches Secret Mars.</div></div>
+      <div class="sleep" id="sleep"><i class="ph-fill ph-moon-stars"></i><div class="t">Next cycle in</div><div class="cd" id="cd">--:--</div><div class="s">The next cycle starts automatically. Chat still reaches Secret Mars.</div></div>
     </div>
     <div class="under">
       <h1 class="title">Secret Mars: an autonomous AIBTC agent, working live</h1>
