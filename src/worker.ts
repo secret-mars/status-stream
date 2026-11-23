@@ -645,6 +645,12 @@ function setStage(ev, live){
   if (live) { cap.classList.remove('fade'); void cap.offsetWidth; cap.classList.add('fade'); state.lastText = Date.now(); }
   if (state.oldest === null || ev.ts < state.oldest) state.oldest = ev.ts;
   $('loader').style.display = 'block';
+  // No step seen yet (just tuned in): headline the latest thing Secret Mars said.
+  if (!state.lastAct) {
+    var first = plain(String(ev.body || '')).split(/(?<=[.!?])\\s/)[0].slice(0, 110);
+    $('hlabel').textContent = first; $('hphase').textContent = 'Latest update';
+    $('hsince').textContent = '· ' + rel(Date.now() - ev.ts);
+  }
 }
 /* ---- chat ---- */
 function chatNode(ev){
@@ -934,15 +940,20 @@ export class EventStream {
     this.state.blockConcurrencyWhile(async () => {
       this.ring = (await this.state.storage.get<any[]>('ring')) || [];
       this.pending = (await this.state.storage.get<any[]>('pending')) || [];
-      this.ring = this.ring.filter(e => e.kind !== 'activity');
+      this.ring = this.ring.filter(e => e.kind !== 'activity' && e.kind !== 'heartbeat');
       this.stats = (await this.state.storage.get<any>('stats')) || { date: '', slots: {} };
+      this.activity = (await this.state.storage.get<any[]>('activity')) || [];
     });
   }
 
   broadcast(ev: any) {
-    this.ring.push(ev);
-    while (this.ring.length > this.ringMax) this.ring.shift();
-    this.state.storage.put('ring', this.ring).catch(() => {});
+    // Heartbeats only keep the LIVE badge fresh: send them, never store them, so the
+    // buffer keeps narration and chat for new viewers.
+    if (ev.kind !== 'heartbeat') {
+      this.ring.push(ev);
+      while (this.ring.length > this.ringMax) this.ring.shift();
+      this.state.storage.put('ring', this.ring).catch(() => {});
+    }
     const msg = JSON.stringify(ev);
     // Fan-out: WebSocket Hibernation API tracks accepted sockets even when
     // the DO has hibernated. ws.send is synchronous; bad sockets just throw.
@@ -1046,6 +1057,8 @@ export class EventStream {
         this.activity.push(act);
         this.countActivity(act);
         while (this.activity.length > 40) this.activity.shift();
+        // Persist, so a deploy or eviction doesn't blank the stage for new viewers.
+        this.state.storage.put('activity', this.activity).catch(() => {});
         const msg = JSON.stringify(act);
         for (const ws of this.state.getWebSockets()) { if (this.isFeed(ws)) continue; try { ws.send(msg); } catch {} }
         return new Response('ok');
@@ -1093,7 +1106,7 @@ export class EventStream {
       for (const ev of ring) {
         try { server.send(JSON.stringify(ev)); } catch {}
       }
-      for (const act of this.activity.slice(-12)) {
+      for (const act of this.activity.slice(-15)) {
         try { server.send(JSON.stringify(act)); } catch {}
       }
       try { server.send(JSON.stringify({ ts: Date.now(), kind: 'stats', date: this.stats.date, slots: this.stats.slots })); } catch {}
