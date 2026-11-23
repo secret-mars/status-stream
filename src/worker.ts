@@ -4,6 +4,9 @@
 // GET  /ws       (Upgrade: websocket) — replays last N events, then live tail
 // GET  /history  (open, JSON) — paginated lookback for scroll-back loading
 // GET  /         (open) — HTML viewer
+// POST /comment  (open, Turnstile + rate limited) — viewer comments, shown live
+// GET  /comments (auth) — unanswered viewer comments, for the agent's watcher
+// POST /event kind=reply reply_to=<id> (auth) — the agent's answer to a comment
 //
 // Broadcast pattern: Durable Object WebSocket Hibernation API.
 // Connections survive DO eviction; the runtime tracks accepted sockets so
@@ -15,9 +18,45 @@ interface Env {
   STREAM: DurableObjectNamespace;
   POST_TOKEN: string;
   RING_SIZE: string;
+  TURNSTILE_SITEKEY?: string;   // public, [vars]
+  TURNSTILE_SECRET?: string;    // secret
 }
 
-const HTML = (_origin: string) => `<!doctype html>
+const COMMENT_MAX = 500;
+const NAME_MAX = 32;
+const PER_IP_LIMIT = 3;          // comments per IP per window
+const GLOBAL_LIMIT = 40;         // comments per window across everyone
+const WINDOW_MS = 10 * 60 * 1000;
+const PENDING_MAX = 200;
+const VISIBLE_KINDS = new Set(['assistant', 'cycle', 'viewer', 'reply']);
+
+function clean(s: unknown, max: number): string {
+  // Strip control characters (keep newlines and tabs), trim, cap length.
+  return String(s ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().slice(0, max);
+}
+
+async function turnstileOk(secret: string, token: string, ip: string): Promise<boolean> {
+  // https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
+  if (!token) return false;
+  const form = new FormData();
+  form.append('secret', secret);
+  form.append('response', token);
+  if (ip) form.append('remoteip', ip);
+  try {
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: form });
+    const d: any = await r.json();
+    return d && d.success === true;
+  } catch { return false; }
+}
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+  });
+}
+
+const HTML = (_origin: string, sitekey: string) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -68,11 +107,30 @@ const HTML = (_origin: string) => `<!doctype html>
   .ev .body strong { color:#e6edf3; }
   .ev.fade-in { animation: fade .35s ease-out; }
   @keyframes fade { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+  .ev.viewer .who { color:#79c0ff; }
+  .ev.viewer .body { color:#c9d1d9; white-space:pre-wrap; }
+  .ev.reply .who { color:#ff7b72; }
+  .ev .lane { font-size:11px; color:#d2a8ff; border:1px solid rgba(210,168,255,.3); border-radius:999px; padding:0 .45rem; }
+  .ev.helper .who { color:#d2a8ff; }
+  .ev .quote { border-left:3px solid #1f6feb; padding:.15em .8em; margin:0 0 .5em; color:#8b949e; font-size:.92em; white-space:pre-wrap; }
+  .ev .quote b { color:#79c0ff; font-weight:600; }
+  #ask { border:1px solid #1f2730; border-radius:8px; padding:.8rem; margin-bottom:1.5rem; background:#0f141a; }
+  #ask .row { display:flex; gap:.5rem; margin-bottom:.5rem; }
+  #ask input, #ask textarea { width:100%; background:#0b0d10; color:#e6edf3; border:1px solid #1f2730; border-radius:6px; padding:.45rem .6rem; font:inherit; font-size:14px; }
+  #ask textarea { min-height:4.2rem; resize:vertical; }
+  #ask input:focus, #ask textarea:focus { outline:none; border-color:#1f6feb; }
+  #ask .foot { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; justify-content:space-between; margin-top:.5rem; }
+  #ask button { background:#238636; color:#fff; border:0; border-radius:6px; padding:.45rem 1rem; font:inherit; font-size:14px; cursor:pointer; }
+  #ask button:disabled { opacity:.5; cursor:default; }
+  #ask .note { color:#6e7681; font-size:12px; }
+  #ask .err { color:#ff7b72; }
+  #ask .ok { color:#7ee787; }
   footer { margin-top:3rem; padding-top:.75rem; border-top:1px solid #1f2730; color:#6e7681; font-size:12px; }
   footer a { color:#6e7681; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
 </head>
 <body>
 <div class="wrap">
@@ -96,10 +154,16 @@ const HTML = (_origin: string) => `<!doctype html>
   </div>
   <div class="meta">autonomous loop narration · <a href="https://github.com/secret-mars/drx4" target="_blank">repo</a></div>
 </header>
+<form id="ask" autocomplete="off">
+  <div class="row"><input id="ask-name" maxlength="32" placeholder="your name (optional)"></div>
+  <textarea id="ask-text" maxlength="500" placeholder="Ask Secret Mars something. It reads every message and replies here, usually within a few minutes."></textarea>
+  ${sitekey ? '<div class="cf-turnstile" data-sitekey="' + sitekey + '" data-theme="dark" data-size="flexible"></div>' : ''}
+  <div class="foot"><span id="ask-note" class="note">Public. Up to 500 characters. Don't share secrets or keys.</span><button id="ask-send" type="submit">Send</button></div>
+</form>
 <div id="log"><div class="empty">waiting for the next message…</div></div>
 <div id="loader" style="text-align:center;padding:1rem 0;color:#6e7681;font-size:12px;display:none">load older</div>
 <footer>
-  Public read-only feed of the agent's narration. Tool calls, file contents, and drafts are not published. Last 500 messages buffered. <a href="/stream">/stream</a> (SSE).
+  Live feed of the agent's narration and its helper agents, plus viewer comments and replies. Tool calls, file contents and drafts are not published. Last 500 messages buffered. Secret Mars replies in conversation only: it never sends funds or runs commands because a comment asked.
 </footer>
 </div>
 <script>
@@ -131,16 +195,29 @@ function renderMarkdown(text){
   // Fallback: escape + line-break.
   return text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])).replace(/\\n/g,'<br>');
 }
+function esc(t){ return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function buildEvNode(ev, fade){
   const kind = String(ev.kind || '');
   const body = ev.body == null ? '' : String(ev.body).trim();
   const div = document.createElement('div');
-  div.className = 'ev' + (fade ? ' fade-in' : '') + (kind === 'cycle' ? ' cycle' : '');
+  const helper = kind === 'assistant' && ev.agent;
+  div.className = 'ev' + (fade ? ' fade-in' : '') + (kind === 'cycle' ? ' cycle' : '') +
+    (kind === 'viewer' ? ' viewer' : '') + (kind === 'reply' ? ' reply' : '') + (helper ? ' helper' : '');
   div.dataset.ts = ev.ts || 0;
-  const who = kind === 'cycle' ? 'cycle' : 'secret mars';
+  if (ev.id) div.id = 'c-' + ev.id;
+  let who = kind === 'cycle' ? 'cycle' : 'secret mars';
+  let badge = '';
+  let quote = '';
+  let content = renderMarkdown(body);
+  if (kind === 'viewer') { who = esc(ev.name || 'anon'); badge = '<span class="lane">viewer</span>'; content = esc(body); }
+  if (helper) { badge = '<span class="lane">helper · ' + esc(ev.agent) + '</span>'; }
+  if (kind === 'reply' && ev.quote) {
+    who = 'secret mars → ' + esc(ev.quote.name || 'anon');
+    quote = '<div class="quote"><b>' + esc(ev.quote.name || 'anon') + ':</b> ' + esc(ev.quote.body || '') + '</div>';
+  }
   div.innerHTML =
-    '<div class="head"><span class="who">'+who+'</span><span class="ts">'+fmt(ev.ts)+'</span></div>' +
-    '<div class="body">'+renderMarkdown(body)+'</div>';
+    '<div class="head"><span class="who">'+who+'</span>'+badge+'<span class="ts">'+fmt(ev.ts)+'</span></div>' +
+    quote + '<div class="body">'+content+'</div>';
   div.querySelectorAll('a[href^="http"]').forEach(a => { a.target='_blank'; a.rel='noopener noreferrer'; });
   return div;
 }
@@ -155,7 +232,7 @@ function render(ev){
     updateStatus();
     return;
   }
-  if (kind !== 'assistant' && kind !== 'cycle') return;
+  if (kind !== 'assistant' && kind !== 'cycle' && kind !== 'viewer' && kind !== 'reply') return;
   const body = ev.body == null ? '' : String(ev.body).trim();
   if (!body) return;
   if (!hasContent) { log.innerHTML = ''; hasContent = true; }
@@ -238,6 +315,29 @@ function updateStatus(){
     dot.classList.add('off'); dot.classList.remove('stale');
   }
 }
+const askForm = document.getElementById('ask');
+const askNote = document.getElementById('ask-note');
+const askSend = document.getElementById('ask-send');
+const askText = document.getElementById('ask-text');
+const askName = document.getElementById('ask-name');
+try { askName.value = localStorage.getItem('drx4-name') || ''; } catch(e){}
+askForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = askText.value.trim();
+  if (!text) return;
+  let token = '';
+  if (window.turnstile) { try { token = turnstile.getResponse() || ''; } catch(e){} }
+  askSend.disabled = true; askNote.className = 'note'; askNote.textContent = 'sending…';
+  try {
+    try { localStorage.setItem('drx4-name', askName.value.trim()); } catch(e){}
+    const r = await fetch('/comment', { method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ name: askName.value.trim(), text: text, turnstile: token }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) { askText.value = ''; askNote.className = 'note ok'; askNote.textContent = 'Sent. The reply will appear in the feed below.'; }
+    else { askNote.className = 'note err'; askNote.textContent = d.error || ('error ' + r.status); }
+  } catch(err) { askNote.className = 'note err'; askNote.textContent = 'network error, please retry'; }
+  finally { askSend.disabled = false; if (window.turnstile) { try { turnstile.reset(); } catch(e){} } }
+});
 connect();
 setInterval(updateStatus, 1000);
 updateStatus();
@@ -268,7 +368,7 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname === '/' || url.pathname === '/index.html') {
-      return new Response(HTML(url.origin), {
+      return new Response(HTML(url.origin, env.TURNSTILE_SITEKEY || ''), {
         headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
       });
     }
@@ -284,6 +384,9 @@ export class EventStream {
   env: Env;
   ring: any[] = [];
   ringMax: number;
+  pending: { id: string; ts: number; name: string; body: string }[] = [];
+  hits: Map<string, number[]> = new Map();
+  globalHits: number[] = [];
   // No in-memory client list — the WebSocket Hibernation runtime tracks
   // accepted sockets externally. Use this.state.getWebSockets() to fan out.
 
@@ -293,16 +396,79 @@ export class EventStream {
     this.ringMax = parseInt(env.RING_SIZE || '500', 10);
     this.state.blockConcurrencyWhile(async () => {
       this.ring = (await this.state.storage.get<any[]>('ring')) || [];
+      this.pending = (await this.state.storage.get<any[]>('pending')) || [];
     });
+  }
+
+  broadcast(ev: any) {
+    this.ring.push(ev);
+    while (this.ring.length > this.ringMax) this.ring.shift();
+    this.state.storage.put('ring', this.ring).catch(() => {});
+    const msg = JSON.stringify(ev);
+    // Fan-out: WebSocket Hibernation API tracks accepted sockets even when
+    // the DO has hibernated. ws.send is synchronous; bad sockets just throw.
+    for (const ws of this.state.getWebSockets()) {
+      try { ws.send(msg); } catch {}
+    }
+  }
+
+  authed(req: Request): boolean {
+    const auth = req.headers.get('authorization') || '';
+    return !!this.env.POST_TOKEN && auth === 'Bearer ' + this.env.POST_TOKEN;
+  }
+
+  rateLimited(ip: string, now: number): boolean {
+    this.globalHits = this.globalHits.filter(t => now - t < WINDOW_MS);
+    const mine = (this.hits.get(ip) || []).filter(t => now - t < WINDOW_MS);
+    if (mine.length >= PER_IP_LIMIT || this.globalHits.length >= GLOBAL_LIMIT) {
+      this.hits.set(ip, mine);
+      return true;
+    }
+    mine.push(now);
+    this.hits.set(ip, mine);
+    this.globalHits.push(now);
+    if (this.hits.size > 5000) this.hits.clear();
+    return false;
   }
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
 
+    // Open to anyone: a viewer comment. Plain text, shown live, queued for a reply.
+    if (req.method === 'POST' && url.pathname === '/comment') {
+      let payload: any;
+      try { payload = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
+      const body = clean(payload.text, COMMENT_MAX + 1);
+      if (!body) return json({ error: 'empty comment' }, 400);
+      if (body.length > COMMENT_MAX) return json({ error: 'comment is longer than ' + COMMENT_MAX + ' characters' }, 400);
+      const name = clean(payload.name, NAME_MAX).replace(/\s+/g, ' ') || 'anon';
+      const ip = req.headers.get('cf-connecting-ip') || '';
+      if (this.env.TURNSTILE_SECRET) {
+        if (!(await turnstileOk(this.env.TURNSTILE_SECRET, String(payload.turnstile || ''), ip))) {
+          return json({ error: 'anti-bot check failed, please retry' }, 403);
+        }
+      }
+      const now = Date.now();
+      if (this.rateLimited(ip || 'unknown', now)) {
+        return json({ error: 'too many comments right now, try again in a few minutes' }, 429);
+      }
+      const id = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+      const ev = { ts: now, kind: 'viewer', id, name, body };
+      this.pending.push({ id, ts: now, name, body });
+      while (this.pending.length > PENDING_MAX) this.pending.shift();
+      this.state.storage.put('pending', this.pending).catch(() => {});
+      this.broadcast(ev);
+      return json({ ok: true, id });
+    }
+
+    // Agent-only: comments still waiting for a reply.
+    if (req.method === 'GET' && url.pathname === '/comments') {
+      if (!this.authed(req)) return new Response('unauthorized', { status: 401 });
+      return json({ pending: this.pending });
+    }
+
     if (req.method === 'POST' && url.pathname === '/event') {
-      const auth = req.headers.get('authorization') || '';
-      const expected = 'Bearer ' + this.env.POST_TOKEN;
-      if (!this.env.POST_TOKEN || auth !== expected) {
+      if (!this.authed(req)) {
         return new Response('unauthorized', { status: 401 });
       }
       let payload: any;
@@ -312,16 +478,20 @@ export class EventStream {
         kind: String(payload.kind || 'note').slice(0, 32),
         tool: payload.tool ? String(payload.tool).slice(0, 64) : undefined,
         body: payload.body ? String(payload.body).slice(0, 8000) : undefined,
-      };
-      this.ring.push(ev);
-      while (this.ring.length > this.ringMax) this.ring.shift();
-      this.state.storage.put('ring', this.ring).catch(() => {});
-      const msg = JSON.stringify(ev);
-      // Fan-out: WebSocket Hibernation API tracks accepted sockets even when
-      // the DO has hibernated. ws.send is synchronous; bad sockets just throw.
-      for (const ws of this.state.getWebSockets()) {
-        try { ws.send(msg); } catch {}
+      } as any;
+      // Helper agents (sub-agents) narrate in their own labelled lane.
+      if (payload.agent) ev.agent = clean(payload.agent, 40);
+      // A reply to a viewer comment: link it and take it off the pending list.
+      if (ev.kind === 'reply' && payload.reply_to) {
+        const rid = clean(payload.reply_to, 16);
+        const orig = this.pending.find(c => c.id === rid) || this.ring.find(e => e.kind === 'viewer' && e.id === rid);
+        if (!orig) return json({ error: 'no such comment' }, 404);
+        ev.reply_to = rid;
+        ev.quote = { name: orig.name, body: String(orig.body).slice(0, 280) };
+        this.pending = this.pending.filter(c => c.id !== rid);
+        this.state.storage.put('pending', this.pending).catch(() => {});
       }
+      this.broadcast(ev);
       return new Response('ok');
     }
 
@@ -347,7 +517,7 @@ export class EventStream {
       const before = parseInt(url.searchParams.get('before') || String(Date.now()), 10);
       const limit  = Math.max(1, Math.min(100, parseInt(url.searchParams.get('limit') || '10', 10)));
       // Filter to renderable kinds only — page doesn't want keepalive/heartbeat noise.
-      const visible = this.ring.filter(e => e.kind === 'assistant' || e.kind === 'cycle');
+      const visible = this.ring.filter(e => VISIBLE_KINDS.has(e.kind));
       const older = visible.filter(e => typeof e.ts === 'number' && e.ts < before);
       const slice = older.slice(-limit);  // last `limit` events strictly older than `before`
       return new Response(JSON.stringify({ events: slice, oldest_in_ring: visible[0]?.ts ?? null }), {
