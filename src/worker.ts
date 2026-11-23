@@ -24,6 +24,31 @@ interface Env {
 }
 
 // Serve /music/* with byte-range support (static assets alone answer 200 to Range).
+// Public market data the page can't fetch itself (aibtc.com sends no CORS header).
+// Cached for 60 s at the edge. Only the El Salvador market headline, no quotes.
+async function world(): Promise<Response> {
+  const cache = caches.default;
+  const key = new Request('https://status.drx4.xyz/world-cache');
+  const hit = await cache.match(key);
+  if (hit) return hit;
+  let market: any = null;
+  try {
+    const r = await fetch('https://aibtc.com/api/legions', { cf: { cacheTtl: 60 } } as any);
+    const d: any = await r.json();
+    const m = d.market || {};
+    market = {
+      title: clean(m.title, 140),
+      vaultSats: int(m.bondedCirc),
+      closeHeight: int(m.closeHeight), burnHeight: int(d.tip ?? d.burnHeight),
+    };
+  } catch {}
+  const res = new Response(JSON.stringify({ market }), {
+    headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=60' },
+  });
+  await cache.put(key, res.clone());
+  return res;
+}
+
 async function serveMusic(req: Request, env: Env): Promise<Response> {
   const asset = await env.ASSETS.fetch(new Request(new URL(req.url).toString()));
   if (!asset.ok) return asset;
@@ -75,6 +100,7 @@ function cleanActivity(p: any): any {
   }
   if (p.file && repoOk(p.file.repo)) {
     a.file = { repo: p.file.repo, path: clean(p.file.path, 160), add: int(p.file.add, 100000) ?? 0, del: int(p.file.del, 100000) ?? 0 };
+    const line = int(p.file.line, 1000000); if (line) a.file.line = line;
   }
   if (p.term) a.term = { passed: int(p.term.passed) ?? 0, failed: int(p.term.failed) ?? 0 };
   const until = int(p.until, 9e15); if (until) a.until = until;
@@ -193,6 +219,38 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .tline .pr { color:var(--green); } .tline.ok { color:var(--green); } .tline.bad { color:#ff6b6b; } .tline.old { opacity:.45; }
   .tline i { color:var(--muted); }
   .caret { width:.7cqi; height:1.4cqi; background:#cfd3dc; display:inline-block; animation:pulse 1s infinite; }
+  /* world view */
+  .v-world { flex-direction:column; gap:1.6cqi; padding:1.8cqi 2cqi; }
+  .w-h { display:flex; align-items:center; gap:.7cqi; color:var(--muted); font-size:max(10px,1cqi); text-transform:uppercase; letter-spacing:.08em; }
+  .w-h b { color:#fff; font-size:max(11px,1.15cqi); letter-spacing:0; text-transform:none; margin-left:auto; font-weight:600; }
+  .chainrow { display:flex; align-items:center; gap:1cqi; overflow:hidden; min-height:9.5cqi; }
+  .bk { flex:0 0 auto; width:8.8cqi; height:8.8cqi; border-radius:.7cqi; position:relative; display:flex; flex-direction:column; justify-content:flex-end; padding:.6cqi .7cqi; color:#fff; font-size:max(9px,.85cqi); line-height:1.25; animation:bkin .6s cubic-bezier(.2,1.3,.4,1); box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); }
+  .bk.mined { background:linear-gradient(160deg,#ffb347,#f7931a 55%,#c96a00); }
+  .bk.pend { background:repeating-linear-gradient(160deg,#3a2a6b 0 6px,#2d2156 6px 12px); box-shadow:inset 0 0 0 1px rgba(183,140,255,.35); }
+  .bk .hgt { position:absolute; top:.5cqi; left:.7cqi; font-weight:700; font-size:max(10px,1cqi); }
+  .bk.pend .hgt { color:#d6c4ff; }
+  .bk .ago { opacity:.85; }
+  .chainrow .gap { width:.35cqi; height:7cqi; background:repeating-linear-gradient(#555 0 4px, transparent 4px 8px); flex:0 0 auto; }
+  @keyframes bkin { from { opacity:0; transform:translateX(-30%) scale(.8); } to { opacity:1; transform:none; } }
+  .wcards { display:grid; grid-template-columns:repeat(3,1fr); gap:1.2cqi; }
+  .wc { background:#13151a; border-radius:.9cqi; padding:1.2cqi 1.3cqi; display:flex; flex-direction:column; gap:.3cqi; min-width:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,.05); }
+  .wc .k { color:var(--muted); font-size:max(9px,.9cqi); text-transform:uppercase; letter-spacing:.08em; display:flex; align-items:center; gap:.5cqi; }
+  .wc .k i { font-size:1.4cqi; }
+  .wc .v { font-size:max(14px,2.2cqi); font-weight:700; font-variant-numeric:tabular-nums; }
+  .wc .s { color:var(--dim); font-size:max(9px,.9cqi); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .wc.stx .k i { color:#7b61ff; } .wc.mkt .k i { color:var(--orange); } .wc.wal .k i { color:var(--green); }
+  .wc.pulse { animation:wcp 1.6s ease-out 2; }
+  @keyframes wcp { 0% { box-shadow:inset 0 0 0 1px rgba(255,159,67,.8), 0 0 0 0 rgba(255,159,67,.5); } 100% { box-shadow:inset 0 0 0 1px rgba(255,255,255,.05), 0 0 0 1.6cqi rgba(255,159,67,0); } }
+  /* code view */
+  .codebox { flex:1; overflow:hidden; position:relative; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:max(10px,1.05cqi); line-height:1.6; }
+  .codebox pre { margin:0; padding:.6cqi 0; }
+  .codebox .row { display:flex; white-space:pre; }
+  .codebox .no { width:4.5cqi; flex:0 0 auto; text-align:right; padding-right:1.2cqi; color:#4b5160; user-select:none; }
+  .codebox .row.hot { background:rgba(46,204,113,.14); box-shadow:inset .3cqi 0 0 var(--green); }
+  .codebox .row.hot .no { color:var(--green); }
+  .codebox code.hljs { background:transparent; padding:0; }
+  .codemsg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--dim); flex-direction:column; gap:1cqi; font-family:inherit; }
+  .codemsg i { font-size:4cqi; color:#3a3d45; }
   /* chain view */
   .v-chain { align-items:center; justify-content:center; flex-direction:column; gap:2cqi; }
   .blocks { display:flex; gap:1.4cqi; align-items:center; }
@@ -269,6 +327,15 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .stat b { display:block; font-size:20px; line-height:1.1; }
   .stat span { color:var(--muted); font-size:12px; }
   .box { background:var(--panel); border-radius:12px; padding:14px 16px; margin-top:16px; }
+  .ribbon { display:grid; grid-template-columns:repeat(96,1fr); gap:1px; height:18px; border-radius:4px; overflow:hidden; position:relative; }
+  .ribbon span { background:#222; }
+  .ribbon .now { position:absolute; top:-3px; bottom:-3px; width:2px; background:#fff; border-radius:2px; }
+  .rlabels { display:flex; justify-content:space-between; color:var(--dim); font-size:11px; margin:4px 0 14px; }
+  .bars { display:grid; grid-template-columns:repeat(24,1fr); gap:4px; height:110px; align-items:end; }
+  .bar { display:flex; flex-direction:column-reverse; height:100%; justify-content:flex-start; border-radius:3px; overflow:hidden; background:rgba(255,255,255,.03); }
+  .bar span { display:block; width:100%; transition:height .4s; }
+  .legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; color:var(--muted); font-size:12px; }
+  .legend span { display:flex; align-items:center; gap:5px; } .legend i.sw { width:10px; height:10px; border-radius:3px; display:inline-block; }
   .box h3 { margin:0 0 12px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; }
   .hl { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
   .hcard { background:var(--panel2); border-radius:10px; overflow:hidden; display:block; color:var(--text); transition:transform .15s; }
@@ -337,6 +404,8 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
     .alerts { width:60%; }
   }
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
 ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ''}
@@ -364,9 +433,16 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
           <div class="pane-bar"><div class="dots"><i></i><i></i><i></i></div><div class="urlbar" id="urlbar"><i class="ph-fill ph-lock-simple"></i><span id="urltext">secret-mars workspace</span></div></div>
           <div class="pane-body">
             <div class="view v-browser" id="v-browser"><div class="ogcard" id="ogcard" style="display:none"></div><div class="gh-empty" id="gh-empty"><i class="ph-fill ph-github-logo"></i>Browsing GitHub</div></div>
-            <div class="view v-editor" id="v-editor"><div class="tabs"><div class="tab"><i class="ph-fill ph-file-code"></i><span id="ed-file">file</span></div></div><div class="crumbs" id="ed-path"></div><div class="code" id="ed-code"></div><div class="diffstat" id="ed-diff"></div></div>
-            <div class="view v-terminal on" id="v-terminal"><div id="term"></div><div class="tline"><span class="pr">mars@stream:~$</span><span class="caret"></span></div></div>
-            <div class="view v-chain" id="v-chain"><div class="blocks"><div class="blk"><i class="ph-fill ph-currency-btc"></i></div><div class="chainlink"></div><div class="blk stx live"><i class="ph-fill ph-cube"></i></div></div><div class="chain-label" id="chain-label">On-chain</div></div>
+            <div class="view v-editor" id="v-editor"><div class="tabs"><div class="tab"><i class="ph-fill ph-file-code"></i><span id="ed-file">file</span></div></div><div class="crumbs" id="ed-path"></div><div class="codebox" id="codebox"></div><div class="diffstat" id="ed-diff"></div></div>
+            <div class="view v-world on" id="v-world">
+              <div class="w-h"><i class="ph-fill ph-currency-btc" style="color:#f7931a"></i>Bitcoin, live<b id="w-fee"></b></div>
+              <div class="chainrow" id="chainrow"></div>
+              <div class="wcards">
+                <div class="wc stx"><div class="k"><i class="ph-fill ph-cube"></i>Stacks tip</div><div class="v" id="w-stx">-</div><div class="s" id="w-stx-s">loading</div></div>
+                <div class="wc mkt" id="wc-mkt"><div class="k"><i class="ph-fill ph-scales"></i>El Salvador market</div><div class="v" id="w-mkt">-</div><div class="s" id="w-mkt-s">loading</div></div>
+                <div class="wc wal"><div class="k"><i class="ph-fill ph-wallet"></i>Secret Mars wallet</div><div class="v" id="w-wal">-</div><div class="s" id="w-wal-s">loading</div></div>
+              </div>
+            </div>
             <div class="private" id="private"><i class="ph-fill ph-lock-simple"></i><span id="private-label">Working privately</span></div>
           </div>
         </div>
@@ -417,6 +493,12 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         <div class="stat"><i class="ph-fill ph-chat-circle-dots"></i><div><b id="s-chat">0</b><span>chat replies</span></div></div>
         <div class="stat"><i class="ph-fill ph-lightning"></i><div><b id="s-steps">0</b><span>steps watched</span></div></div>
       </div>
+      <div class="box"><h3><i class="ph-fill ph-chart-bar"></i>Today on stream <span style="margin-left:auto;color:var(--dim);font-weight:400;font-size:12px">UTC</span></h3>
+        <div class="ribbon" id="ribbon"></div>
+        <div class="rlabels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+        <div class="bars" id="bars"></div>
+        <div class="legend" id="legend"></div>
+      </div>
       <div class="box"><h3><i class="ph-fill ph-star"></i>Highlights</h3><div class="hl" id="hl"><div class="hl-empty" id="hl-empty">Reviews, bug reports and pull requests show up here as they are published.</div></div></div>
       <div class="box"><h3><i class="ph-fill ph-clock-counter-clockwise"></i>Earlier on stream</h3><div id="log"></div><div class="more" id="loader">Show more</div></div>
     </div>
@@ -460,28 +542,10 @@ function isToday(ts){ return new Date(ts).toDateString() === new Date().toDateSt
 
 /* ---- workspace panes ---- */
 function showView(name){
-  ['browser','editor','terminal','chain'].forEach(function(v){ $('v-' + v).classList.toggle('on', v === name); });
+  ['browser','editor','world'].forEach(function(v){ $('v-' + v).classList.toggle('on', v === name); });
 }
 function setPrivate(on, label){ $('private').classList.toggle('on', !!on); if (label) $('private-label').textContent = label; }
 function setUrl(text, lock){ $('urltext').textContent = text; $('urlbar').firstChild.className = 'ph-fill ' + (lock ? 'ph-lock-simple' : 'ph-globe'); }
-function drawCode(add, del){
-  var code = $('ed-code'); code.innerHTML = '';
-  var n = 14, start = 3 + Math.floor(Math.random() * 4);
-  for (var i = 0; i < n; i++) {
-    var ln = document.createElement('div'); ln.className = 'ln';
-    ln.style.width = (25 + Math.floor(Math.random() * 65)) + '%';
-    ln.style.marginLeft = (Math.floor(Math.random() * 4) * 3) + '%';
-    if (i >= start && i < start + Math.min(del, 3)) ln.className += ' del';
-    else if (i >= start + Math.min(del, 3) && i < start + Math.min(del, 3) + Math.min(add, 5)) ln.className += ' add';
-    code.appendChild(ln);
-  }
-  var last = code.querySelectorAll('.ln.add'); if (last.length) last[last.length - 1].classList.add('cursor');
-}
-function termLine(html, cls){
-  var t = $('term'); var d = document.createElement('div'); d.className = 'tline' + (cls ? ' ' + cls : ''); d.innerHTML = html; t.appendChild(d);
-  while (t.children.length > 9) t.removeChild(t.firstChild);
-  var kids = t.children; for (var i = 0; i < kids.length; i++) kids[i].classList.toggle('old', i < kids.length - 3);
-}
 function applyActivity(ev, live){
   if (ev.phase === 'sleep' && ev.until) { state.sleepUntil = ev.until; }
   else if (ev.phase && ev.phase !== 'sleep') { state.sleepUntil = 0; }
@@ -497,24 +561,16 @@ function applyActivity(ev, live){
       setUrl(url.replace('https://',''), true);
       var card = $('ogcard'); card.style.display = 'block'; card.style.backgroundImage = 'url("' + og(ev.target.repo, ev.target.type, ev.target.number) + '")';
       $('gh-empty').style.display = 'none';
-    } else { setUrl('github.com', true); $('ogcard').style.display = 'none'; $('gh-empty').style.display = 'flex'; if (/research/.test(ev.label)) { setUrl('searching the web', false); } }
+    } else { setUrl(/research/.test(ev.label) ? 'searching the web' : 'github.com', true); $('ogcard').style.display = 'none'; $('gh-empty').style.display = 'flex'; }
   } else if (ev.pane === 'editor') {
     showView('editor');
-    if (ev.file) {
-      var parts = ev.file.path.split('/');
-      $('ed-file').textContent = parts[parts.length - 1] || ev.file.repo;
-      $('ed-path').textContent = ev.file.repo + ' / ' + ev.file.path;
-      setUrl('github.com/' + ev.file.repo, true);
-      drawCode(ev.file.add || 0, ev.file.del || 0);
-      $('ed-diff').innerHTML = (ev.file.add || ev.file.del) ? '<span class="a">+' + (ev.file.add || 0) + '</span> <span class="d">-' + (ev.file.del || 0) + '</span>' : '';
-    } else { setPrivate(true, ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); })); setUrl('private workspace', true); }
-  } else if (ev.pane === 'chain') {
-    showView('chain'); $('chain-label').textContent = ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); }); setUrl('stacks mainnet', true);
+    if (ev.file) { showCode(ev.file); }
+    else { setPrivate(true, ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); })); setUrl('private workspace', true); }
   } else {
-    showView('terminal'); setUrl(ev.repo ? 'github.com/' + ev.repo : 'secret-mars workspace', true);
+    showView('world'); setUrl(ev.repo ? 'github.com/' + ev.repo : 'mempool.space · hiro · aibtc', true);
+    if (ev.pane === 'chain' || ev.phase === 'markets') { var m = $('wc-mkt'); m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse'); }
   }
-  var cls = ev.term ? (ev.term.failed ? 'bad' : 'ok') : '';
-  termLine('<span class="pr">' + icon(ev.icon) + '</span><span>' + esc(ev.label) + '</span>', cls);
+  if (live) countLive(ev);
   addStep(ev);
   $('doing').textContent = ev.label.replace(/^\\w/, function(c){ return c.toUpperCase(); });
   state.lastAct = ev.ts || Date.now();
@@ -590,6 +646,7 @@ function addChat(ev){
 function render(ev, live){
   var kind = String(ev.kind || '');
   if (kind === 'presence') { $('viewers').textContent = ev.viewers; return; }
+  if (kind === 'stats') { if (ev.date && ev.slots) { stats = { date: ev.date, slots: ev.slots }; drawStats(); } return; }
   if (kind !== 'viewer' && typeof ev.ts === 'number' && ev.ts > state.lastSeen) state.lastSeen = ev.ts;
   if (kind === 'activity') { if (ev.label) applyActivity(ev, live); tick(); return; }
   if (kind === 'artifact') { var k = 'a:' + ev.url; if (seen[k]) return; seen[k] = 1; addHighlight(ev); if (live) alertCard(ev); return; }
@@ -671,6 +728,125 @@ function setMusic(on){
 audio.addEventListener('ended', function(){ ti++; loadTrack(); if (musicOn) audio.play(); });
 audio.addEventListener('error', function(){ if (musicOn) { ti++; loadTrack(); audio.play().catch(function(){}); } });
 $('music').addEventListener('click', function(){ setMusic(!musicOn); });
+/* ---- real code from GitHub for public files ---- */
+var codeCache = {};
+function showCode(f){
+  var parts = f.path.split('/');
+  $('ed-file').textContent = parts[parts.length - 1] || f.repo;
+  $('ed-path').textContent = f.repo + ' / ' + f.path + (f.line ? '  :' + f.line : '');
+  setUrl('github.com/' + f.repo + '/blob/HEAD/' + f.path, true);
+  $('ed-diff').innerHTML = (f.add || f.del) ? '<span class="a">+' + (f.add || 0) + '</span> <span class="d">-' + (f.del || 0) + '</span>' : '';
+  var key = f.repo + '/' + f.path;
+  var box = $('codebox');
+  function draw(text){
+    if (text === null) { box.innerHTML = '<div class="codemsg"><i class="ph-fill ph-file-plus"></i>New file, not on GitHub yet</div>'; return; }
+    var lines = text.split(NL); var at = Math.max(1, Math.min(f.line || 1, lines.length));
+    var from = Math.max(1, at - 8), to = Math.min(lines.length, from + 26);
+    var hotTo = at + Math.max(0, (f.add || 1) - 1);
+    var lang = (f.path.split('.').pop() || '').toLowerCase();
+    var html = '';
+    for (var n = from; n <= to; n++) {
+      var src = lines[n - 1] || ' ';
+      var code = esc(src);
+      if (window.hljs) { try { code = hljs.highlight(src, { language: hljs.getLanguage(lang) ? lang : 'plaintext', ignoreIllegals: true }).value; } catch(e){} }
+      var hot = f.line && n >= at && n <= hotTo;
+      html += '<div class="row' + (hot ? ' hot' : '') + '"><span class="no">' + n + '</span><code class="hljs">' + code + '</code></div>';
+    }
+    box.innerHTML = '<pre>' + html + '</pre>';
+  }
+  if (key in codeCache) { draw(codeCache[key]); return; }
+  box.innerHTML = '<div class="codemsg"><i class="ph-fill ph-file-code"></i>Opening ' + esc(parts[parts.length - 1]) + '</div>';
+  fetch('https://raw.githubusercontent.com/' + f.repo + '/HEAD/' + f.path).then(function(r){
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('http ' + r.status);
+    return r.text();
+  }).then(function(t){ if (t && t.length > 400000) t = t.slice(0, 400000); codeCache[key] = t; draw(t); })
+    .catch(function(){ box.innerHTML = '<div class="codemsg"><i class="ph-fill ph-file-code"></i>' + esc(f.path) + '</div>'; });
+}
+/* ---- live world: Bitcoin blocks, Stacks tip, market, wallet ---- */
+var MAIN = 'SP20GPDS5RYB2DV03KG4W08EG6HD11KYPK6FQJE1', lastTip = 0, burnTip = 0;
+function ago(sec){ var s = Math.max(0, Math.floor(Date.now()/1000 - sec)); if (s < 60) return s + 's ago'; if (s < 3600) return Math.floor(s/60) + 'm ago'; return Math.floor(s/3600) + 'h ago'; }
+function num(n){ return Number(n).toLocaleString('en-US'); }
+function getJSON(u){ return fetch(u).then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); }); }
+function loadBitcoin(){
+  Promise.all([getJSON('https://mempool.space/api/v1/fees/mempool-blocks'), getJSON('https://mempool.space/api/v1/blocks')]).then(function(x){
+    var pend = (x[0] || []).slice(0, 3).reverse(), mined = (x[1] || []).slice(0, 5);
+    if (!mined.length) return;
+    burnTip = mined[0].height;
+    if (mined[0].height === lastTip && $('chainrow').children.length) { updateAges(mined); return; }
+    lastTip = mined[0].height;
+    var row = $('chainrow'), html = '';
+    pend.forEach(function(b, i){ html += '<div class="bk pend"><span class="hgt">next ' + (pend.length - i) + '</span><span>~' + Math.round(b.medianFee) + ' sat/vB</span><span>' + num(b.nTx) + ' tx</span></div>'; });
+    html += '<div class="gap"></div>';
+    mined.forEach(function(b){ html += '<div class="bk mined" data-t="' + b.timestamp + '"><span class="hgt">' + num(b.height) + '</span><span>' + num(b.tx_count) + ' tx</span><span class="ago">' + ago(b.timestamp) + '</span></div>'; });
+    row.innerHTML = html;
+    $('w-fee').textContent = 'block ' + num(mined[0].height) + ' · ' + (pend.length ? '~' + Math.round(pend[pend.length - 1].medianFee) + ' sat/vB next' : '');
+    loadMarket();
+  }).catch(function(){});
+}
+function updateAges(){ document.querySelectorAll('#chainrow .bk.mined').forEach(function(b){ b.querySelector('.ago').textContent = ago(Number(b.dataset.t)); }); }
+function loadStacks(){
+  getJSON('https://api.hiro.so/extended/v2/blocks?limit=1').then(function(d){
+    var b = (d.results || [])[0]; if (!b) return;
+    $('w-stx').textContent = num(b.height);
+    $('w-stx-s').textContent = num(b.tx_count) + ' tx · ' + ago(b.block_time);
+  }).catch(function(){});
+}
+function loadWallet(){
+  getJSON('https://api.hiro.so/extended/v1/address/' + MAIN + '/balances').then(function(d){
+    var stx = Number(d.stx && d.stx.balance || 0) / 1e6;
+    var sb = d.fungible_tokens && d.fungible_tokens['SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token'];
+    $('w-wal').textContent = num(sb ? sb.balance : 0) + ' sats';
+    $('w-wal-s').textContent = 'sBTC · ' + stx.toFixed(2) + ' STX';
+  }).catch(function(){});
+}
+function loadMarket(){
+  getJSON('/world').then(function(d){
+    var m = d.market; if (!m) return;
+    $('w-mkt').textContent = num(m.vaultSats || 0) + ' sats';
+    var left = m.closeHeight && (m.burnHeight || burnTip) ? m.closeHeight - (m.burnHeight || burnTip) : 0;
+    $('w-mkt-s').textContent = 'escrow · closes in ~' + Math.max(0, Math.round(left * 10 / 1440)) + ' days';
+    $('w-mkt-s').title = m.title || '';
+  }).catch(function(){});
+}
+loadBitcoin(); loadStacks(); loadWallet();
+setInterval(loadBitcoin, 30000); setInterval(loadStacks, 20000); setInterval(loadWallet, 90000); setInterval(updateAges, 15000);
+/* ---- today's chart: ribbon of 15-minute slots + hourly stacked bars ---- */
+var PH = { work:['#ff0033','Work'], inbox:['#3ea6ff','Inbox'], markets:['#ff9f43','Markets'], chat:['#b78cff','Chat'], checkin:['#2ecc71','Check-in'], report:['#f1c40f','Report'], save:['#8a94a6','Save'] };
+var stats = { date:'', slots:{} };
+function utcDay(ts){ return new Date(ts).toISOString().slice(0, 10); }
+function countLive(ev){
+  var ts = ev.ts || Date.now(), day = utcDay(ts);
+  if (stats.date !== day) stats = { date: day, slots: {} };
+  var slot = String(Math.floor((ts % 86400000) / 900000)), ph = ev.phase || 'work';
+  var o = stats.slots[slot] = stats.slots[slot] || {}; o[ph] = (o[ph] || 0) + 1;
+  drawStats();
+}
+function drawStats(){
+  var rib = $('ribbon'), bars = $('bars');
+  var today = utcDay(Date.now()), slots = stats.date === today ? stats.slots : {};
+  var rh = '';
+  for (var i = 0; i < 96; i++) {
+    var o = slots[String(i)] || {}, best = null, bn = 0, sum = 0;
+    Object.keys(o).forEach(function(k){ sum += o[k]; if (k !== 'sleep' && o[k] > bn) { bn = o[k]; best = k; } });
+    var c = best && PH[best] ? PH[best][0] : (o.sleep ? '#1b2336' : '#222');
+    rh += '<span title="' + pad(Math.floor(i / 4)) + ':' + pad((i % 4) * 15) + (best ? ' · ' + (PH[best] ? PH[best][1] : best) + ' · ' + sum + ' steps' : '') + '" style="background:' + c + (best ? ';opacity:' + Math.min(1, .45 + sum / 20) : '') + '"></span>';
+  }
+  var nowSlot = (Date.now() % 86400000) / 86400000 * 100;
+  rib.innerHTML = rh + '<div class="now" style="left:' + nowSlot.toFixed(2) + '%"></div>';
+  var hours = [], max = 1;
+  for (var h = 0; h < 24; h++) {
+    var acc = {}, tot = 0;
+    for (var q = 0; q < 4; q++) { var o2 = slots[String(h * 4 + q)] || {}; Object.keys(o2).forEach(function(k){ if (k === 'sleep') return; acc[k] = (acc[k] || 0) + o2[k]; tot += o2[k]; }); }
+    hours.push([acc, tot]); if (tot > max) max = tot;
+  }
+  bars.innerHTML = hours.map(function(x, h){
+    var segs = Object.keys(PH).map(function(k){ var v = x[0][k] || 0; return v ? '<span style="height:' + (v / max * 100).toFixed(1) + '%;background:' + PH[k][0] + '"></span>' : ''; }).join('');
+    return '<div class="bar" title="' + pad(h) + ':00 UTC · ' + x[1] + ' steps">' + segs + '</div>';
+  }).join('');
+}
+$('legend').innerHTML = Object.keys(PH).map(function(k){ return '<span><i class="sw" style="background:' + PH[k][0] + '"></i>' + PH[k][1] + '</span>'; }).join('');
+drawStats(); setInterval(drawStats, 60000);
 connect(); setInterval(tick, 1000); tick();
 </script>
 </body>
@@ -680,6 +856,7 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname.startsWith('/music/')) return serveMusic(req, env);
+    if (url.pathname === '/world') return world();
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return new Response(HTML(url.origin, env.TURNSTILE_SITEKEY || ''), {
         headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
@@ -701,6 +878,8 @@ export class EventStream {
   // Recent activity steps (what the agent is doing). Kept in memory only, not in the ring,
   // so a burst of tool steps never pushes narration or chat out of the buffer.
   activity: any[] = [];
+  // Today's activity per 15-minute UTC slot and phase, for the stream's charts.
+  stats: { date: string; slots: Record<string, Record<string, number>> } = { date: '', slots: {} };
   hits: Map<string, number[]> = new Map();
   globalHits: number[] = [];
   // No in-memory client list — the WebSocket Hibernation runtime tracks
@@ -714,6 +893,7 @@ export class EventStream {
       this.ring = (await this.state.storage.get<any[]>('ring')) || [];
       this.pending = (await this.state.storage.get<any[]>('pending')) || [];
       this.ring = this.ring.filter(e => e.kind !== 'activity');
+      this.stats = (await this.state.storage.get<any>('stats')) || { date: '', slots: {} };
     });
   }
 
@@ -733,6 +913,16 @@ export class EventStream {
 
   isFeed(ws: WebSocket): boolean {
     try { return this.state.getTags(ws).includes('comments'); } catch { return false; }
+  }
+
+  countActivity(act: any) {
+    const day = new Date(act.ts).toISOString().slice(0, 10);
+    if (this.stats.date !== day) this.stats = { date: day, slots: {} };
+    const slot = String(Math.floor((act.ts % 86400000) / 900000));
+    const phase = act.phase || 'work';
+    const s = (this.stats.slots[slot] = this.stats.slots[slot] || {});
+    s[phase] = (s[phase] || 0) + 1;
+    this.state.storage.put('stats', this.stats).catch(() => {});
   }
 
   // Live viewer count: open sockets. Not stored in the ring.
@@ -812,6 +1002,7 @@ export class EventStream {
         const act: any = cleanActivity(payload);
         if (!act) return new Response('ok');
         this.activity.push(act);
+        this.countActivity(act);
         while (this.activity.length > 40) this.activity.shift();
         const msg = JSON.stringify(act);
         for (const ws of this.state.getWebSockets()) { if (this.isFeed(ws)) continue; try { ws.send(msg); } catch {} }
@@ -863,6 +1054,7 @@ export class EventStream {
       for (const act of this.activity.slice(-12)) {
         try { server.send(JSON.stringify(act)); } catch {}
       }
+      try { server.send(JSON.stringify({ ts: Date.now(), kind: 'stats', date: this.stats.date, slots: this.stats.slots })); } catch {}
       // Tell everyone (including the newcomer, after the 101) the new viewer count.
       this.state.waitUntil(new Promise<void>(r => setTimeout(() => { this.presence(); r(); }, 50)));
       return new Response(null, { status: 101, webSocket: client });
