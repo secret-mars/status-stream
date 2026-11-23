@@ -7,6 +7,10 @@
 // POST /comment  (open, Turnstile + rate limited) — viewer comments, shown live
 // GET  /comments (auth) — unanswered viewer comments, for the agent's watcher
 // POST /event kind=reply reply_to=<id> (auth) — the agent's answer to a comment
+// POST /event kind=activity|artifact (auth) — typed stream steps and alert cards
+// GET  /ws?feed=comments (open) — push channel carrying only new viewer comments
+// GET  /world    (open, cached 60 s) — El Salvador market headline for the ticker
+// GET  /music/*  (open) — CC0 background tracks, served with byte ranges
 //
 // Broadcast pattern: Durable Object WebSocket Hibernation API.
 // Connections survive DO eviction; the runtime tracks accepted sockets so
