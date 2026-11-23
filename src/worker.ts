@@ -665,7 +665,7 @@ window.__donateSend = async function(asset, amount){
     contract: SBTC, functionName: 'transfer',
     functionArgs: [Cl.uint(amount), Cl.principal(sender), Cl.principal(MAIN), Cl.none()],
     postConditions: [Pc.principal(sender).willSendEq(amount).ft(SBTC, 'sbtc-token')],
-    postConditionMode: 'allow', network: 'mainnet',
+    postConditionMode: 'deny', network: 'mainnet',
   });
   return r && r.txid;
 };
