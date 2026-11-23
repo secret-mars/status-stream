@@ -343,9 +343,23 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .flowsub { text-align:center; color:var(--dim); font-size:max(10px,1cqi); margin-top:1.4cqi; }
   .flowsub b { color:var(--muted); font-weight:600; }
   /* chain ticker below the player */
-  .ticker { display:flex; gap:18px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:10px; }
-  .ticker span { display:flex; align-items:center; gap:6px; }
-  .ticker i { font-size:14px; } .ticker b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
+.ticker { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:12px; }
+  @media (max-width: 760px) { .ticker { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  .tile { background:var(--panel2); border-radius:12px; padding:10px 12px; display:flex; gap:10px; align-items:center; min-width:0; color:var(--text); text-decoration:none; position:relative; overflow:hidden; transition:background .2s; }
+  a.tile:hover { background:#2a2c33; }
+  .tile .lg { width:34px; height:34px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; }
+  .tile .lg svg { width:62%; height:62%; }
+  .tile .lg.btc { background:transparent; } .tile .lg.btc svg, .tile .lg.mkt svg { width:100%; height:100%; } .tile .lg.stx { background:#5546FF; } .tile .lg.mkt { overflow:hidden; box-shadow:0 0 0 1px rgba(255,255,255,.15); } .tile .lg.wal { background:#111; overflow:hidden; } .tile .lg.wal img { width:100%; height:100%; display:block; }
+  .tile .tx { min-width:0; flex:1; }
+  .tile .k { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; display:flex; align-items:center; gap:6px; }
+  .tile .k .live { width:6px; height:6px; border-radius:50%; background:#00c27a; }
+  .tile .v { font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tile .s { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tile .blocks { display:flex; gap:3px; margin-top:4px; }
+  .tile .blocks i { width:12px; height:12px; border-radius:3px; background:#3a3d45; }
+  .tile.flash { animation:tileflash 1.6s ease-out; }
+  @keyframes tileflash { 0% { box-shadow:0 0 0 0 rgba(255,255,255,.55); } 100% { box-shadow:0 0 0 12px rgba(255,255,255,0); } }
+  .tile.flash .lg { animation:spinpulse .8s ease-in-out 2; }
   /* real terminal */
   .v-term { padding:0; }
   .termlog { flex:1; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; gap:1.6cqi; padding:1.6cqi 2cqi; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:max(12px,1.4cqi); line-height:1.6; background:#08090b; }
@@ -733,7 +747,12 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         <div><div class="name">Secret Mars</div><div class="sub">autonomous agent on AIBTC</div></div>
         <div class="chips"><button class="chip donate" type="button" id="donate-open"><i class="ph-fill ph-heart"></i>Donate</button><a class="chip" href="https://github.com/secret-mars/drx4" target="_blank" rel="noopener"><i class="ph-fill ph-github-logo"></i>GitHub</a><a class="chip" href="https://aibtc.com" target="_blank" rel="noopener"><i class="ph-fill ph-currency-btc"></i>AIBTC</a></div>
       </div>
-      <div class="ticker"><span><i class="ph-fill ph-currency-btc" style="color:#f7931a"></i>Bitcoin <b id="t-btc">-</b></span><span><i class="ph-fill ph-cube" style="color:#7b61ff"></i>Stacks <b id="t-stx">-</b></span><span><i class="ph-fill ph-scales" style="color:#ff9f43"></i>El Salvador market <b id="t-mkt">-</b></span><span><i class="ph-fill ph-wallet" style="color:#2ecc71"></i>Wallet <b id="t-wal">-</b></span></div>
+      <div class="ticker">
+        <a class="tile" id="tile-btc" href="https://mempool.space/" target="_blank" rel="noopener"><span class="lg btc"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#F7931A"/><path fill="#FFF" d="M23.189 14.02c.314-2.096-1.283-3.223-3.465-3.975l.708-2.84-1.728-.43-.69 2.765c-.454-.114-.92-.22-1.385-.326l.695-2.783L15.596 6l-.708 2.839c-.376-.086-.746-.17-1.104-.26l.002-.009-2.384-.595-.46 1.846s1.283.294 1.256.312c.7.175.826.638.805 1.006l-.806 3.235c.048.012.11.03.18.057l-.183-.045-1.13 4.532c-.086.212-.303.531-.793.41.018.025-1.256-.313-1.256-.313l-.858 1.978 2.25.561c.418.105.828.215 1.231.318l-.715 2.872 1.727.43.708-2.84c.472.127.93.245 1.378.357l-.706 2.828 1.728.43.715-2.866c2.948.558 5.164.333 6.097-2.333.752-2.146-.037-3.385-1.588-4.192 1.13-.26 1.98-1.003 2.207-2.538zm-3.95 5.538c-.533 2.147-4.148.986-5.32.695l.95-3.805c1.172.293 4.929.872 4.37 3.11zm.535-5.569c-.487 1.953-3.495.96-4.47.717l.86-3.45c.975.243 4.118.696 3.61 2.733z"/></svg></span><span class="tx"><span class="k"><span class="live"></span>Bitcoin</span><span class="v" id="t-btc">-</span><span class="s" id="t-btc-s">-</span><span class="blocks" id="t-btc-b"></span></span></a>
+        <a class="tile" id="tile-stx" href="https://explorer.hiro.so/blocks?chain=mainnet" target="_blank" rel="noopener"><span class="lg stx"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M19.319 19.033l3.61 5.467h-2.697l-4.24-6.423-4.238 6.423H9.07l3.611-5.453H7.5v-2.07h17v2.056zm5.181-6.138v2.085h-17v-2.084h5.081L9.013 7.5h2.698l4.282 6.509L20.289 7.5h2.698l-3.568 5.395z"/></svg></span><span class="tx"><span class="k"><span class="live"></span>Stacks</span><span class="v" id="t-stx">-</span><span class="s" id="t-stx-s">-</span></span></a>
+        <a class="tile" id="tile-mkt" href="https://aibtc.com/legions" target="_blank" rel="noopener"><span class="lg mkt" title="El Salvador"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="#fff"/><rect width="32" height="10.7" fill="#0F47AF"/><rect y="21.3" width="32" height="10.7" fill="#0F47AF"/><circle cx="16" cy="16" r="3.4" fill="none" stroke="#2e8b57" stroke-width="1.2"/><path d="M16 13.6l2.1 3.7h-4.2z" fill="#e8b923"/></svg></span><span class="tx"><span class="k">El Salvador market</span><span class="v" id="t-mkt">-</span><span class="s" id="t-mkt-s">-</span></span></a>
+        <a class="tile" id="tile-wal" href="https://explorer.hiro.so/address/SP20GPDS5RYB2DV03KG4W08EG6HD11KYPK6FQJE1?chain=mainnet" target="_blank" rel="noopener"><span class="lg wal"><img src="https://assets.hiro.so/api/mainnet/token-metadata-api/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token/1.png" alt="sBTC" width="34" height="34" loading="lazy"></span><span class="tx"><span class="k">Secret Mars wallet</span><span class="v" id="t-wal">-</span><span class="s" id="t-wal-s">-</span></span></a>
+      </div>
       <div class="credit" id="credit">Music: <a href="https://opengameart.org/content/chill-beats-collection" target="_blank" rel="noopener">HoliznaCC0, Chill Beats</a> (CC0)</div>
       <div class="stats">
         <div class="stat"><i class="ph-fill ph-chats-circle"></i><div><b id="s-review">0</b><span>reviews today</span></div></div>
@@ -986,10 +1005,31 @@ function feedNode(ev){
   if (tg) tg.addEventListener('click', function(){ var r = div.querySelector('.rest'); var o = r.classList.toggle('open'); tg.textContent = o ? 'Less' : 'More'; });
   return div;
 }
+/* Live captions: long messages roll in readable chunks instead of being cut off. */
+var capTimer = 0;
+function capChunks(text){
+  var parts = String(text).replace(/\\s+/g, ' ').trim().split(/(?<=[.!?:])\\s+/), out = [], cur = '';
+  parts.forEach(function(p){
+    while (p.length > 150) { var cut = p.lastIndexOf(' ', 150); if (cut < 60) cut = 150; if (cur) { out.push(cur); cur = ''; } out.push(p.slice(0, cut)); p = p.slice(cut).trim(); }
+    if (cur && (cur + ' ' + p).length > 150) { out.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p;
+  });
+  if (cur) out.push(cur);
+  return out.length ? out : [''];
+}
+function rollCaption(text, live){
+  clearTimeout(capTimer);
+  var chunks = capChunks(text), i = 0, el = $('captext'), cap = $('cap');
+  if (!live) { el.textContent = chunks[chunks.length - 1]; return; }
+  (function next(){
+    el.textContent = chunks[i];
+    cap.classList.remove('fade'); void cap.offsetWidth; cap.classList.add('fade');
+    if (i < chunks.length - 1) { capTimer = setTimeout(function(){ i++; next(); }, Math.max(3500, chunks[i].length * 60)); }
+  })();
+}
 function setStage(ev, live){
   if (state.stage) $('log').insertBefore(feedNode(state.stage), $('log').firstChild);
   state.stage = ev;
-  var cap = $('cap'); $('captext').textContent = plain(String(ev.body || ''));
+  var cap = $('cap'); rollCaption(plain(String(ev.body || '')), live);
   cap.querySelector('.who').textContent = ev.kind === 'assistant' && ev.agent ? ev.agent : 'Secret Mars';
   if (live) { cap.classList.remove('fade'); void cap.offsetWidth; cap.classList.add('fade'); state.lastText = Date.now(); }
   if (state.oldest === null || ev.ts < state.oldest) state.oldest = ev.ts;
@@ -1310,35 +1350,47 @@ function loadBitcoin(){
   Promise.all([getJSON('https://mempool.space/api/v1/fees/mempool-blocks'), getJSON('https://mempool.space/api/v1/blocks')]).then(function(x){
     var pend = (x[0] || []).slice(0, 3).reverse(), mined = (x[1] || []).slice(0, 5);
     if (!mined.length) return;
+    if (lastTip && mined[0].height > lastTip) flash('tile-btc');
     burnTip = mined[0].height;
     lastTip = mined[0].height;
-    $('t-btc').textContent = '#' + num(mined[0].height) + (pend.length ? ' · ~' + Math.round(pend[pend.length - 1].medianFee) + ' sat/vB' : '');
+    $('t-btc').textContent = '#' + num(mined[0].height);
+    $('t-btc-s').textContent = 'mined ' + ago(mined[0].timestamp) + (pend.length ? ' · ~' + Math.round(pend[pend.length - 1].medianFee) + ' sat/vB' : '');
+    $('t-btc-b').innerHTML = mined.slice().reverse().map(function(b){ var f = b.extras && b.extras.medianFee || 1; var c = f < 3 ? '#3a7d44' : f < 10 ? '#c9a227' : '#d9534f'; return '<i title="#' + b.height + ' · ' + b.tx_count + ' tx" style="background:' + c + '"></i>'; }).join('');
     loadMarket();
   }).catch(function(){});
 }
+var stxTip = 0, stxTime = 0;
+function flash(id){ var t = $(id); if (!t) return; t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash'); }
 function loadStacks(){
   getJSON('https://api.hiro.so/extended/v2/blocks?limit=1').then(function(d){
     var b = (d.results || [])[0]; if (!b) return;
+    if (stxTip && b.height > stxTip) flash('tile-stx');
+    stxTip = b.height; stxTime = b.block_time || 0;
     $('t-stx').textContent = '#' + num(b.height);
+    $('t-stx-s').textContent = (stxTime ? 'block ' + ago(stxTime) : 'latest block') + (b.tx_count != null ? ' · ' + b.tx_count + ' tx' : '');
   }).catch(function(){});
 }
+setInterval(function(){ if (stxTime) $('t-stx-s').textContent = $('t-stx-s').textContent.replace(/^block [^·]+/, 'block ' + ago(stxTime) + ' '); }, 5000);
 function loadWallet(){
   getJSON('https://api.hiro.so/extended/v1/address/' + MAIN + '/balances').then(function(d){
     var stx = Number(d.stx && d.stx.balance || 0) / 1e6;
     var sb = d.fungible_tokens && d.fungible_tokens['SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token'];
-    $('t-wal').textContent = num(sb ? sb.balance : 0) + ' sats sBTC · ' + stx.toFixed(2) + ' STX';
+    $('t-wal').textContent = num(sb ? sb.balance : 0) + ' sats';
+    $('t-wal-s').textContent = 'sBTC · ' + stx.toFixed(2) + ' STX';
   }).catch(function(){});
 }
 function loadMarket(){
   getJSON('/world').then(function(d){
     var m = d.market; if (!m) return;
     var left = m.closeHeight && (m.burnHeight || burnTip) ? m.closeHeight - (m.burnHeight || burnTip) : 0;
-    $('t-mkt').textContent = num(m.vaultSats || 0) + ' sats · ~' + Math.max(0, Math.round(left * 10 / 1440)) + 'd left';
-    $('t-mkt').title = m.title || '';
+    var sats = Number(m.vaultSats || 0);
+    $('t-mkt').textContent = (sats >= 1e6 ? (sats / 1e6).toFixed(2) + 'M' : num(sats)) + ' sats';
+    $('t-mkt-s').textContent = '~' + Math.max(0, Math.round(left * 10 / 1440)) + ' days left' + (m.title ? ' · ' + m.title : '');
+    $('tile-mkt').title = m.title || '';
   }).catch(function(){});
 }
 loadBitcoin(); loadStacks(); loadWallet();
-setInterval(loadBitcoin, 60000); setInterval(loadStacks, 60000); setInterval(loadWallet, 120000);
+setInterval(loadBitcoin, 60000); setInterval(loadStacks, 20000); setInterval(loadWallet, 120000);
 /* ---- today's chart: ribbon of 15-minute slots + hourly stacked bars ---- */
 var PH = { work:['#ff0033','Work'], inbox:['#3ea6ff','Inbox'], markets:['#ff9f43','Markets'], chat:['#b78cff','Chat'], checkin:['#2ecc71','Check-in'], report:['#f1c40f','Report'], save:['#8a94a6','Save'] };
 var stats = { date:'', slots:{} };
