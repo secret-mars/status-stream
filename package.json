@@ -7,7 +7,10 @@
     "dev": "wrangler dev"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240320.0",
-    "wrangler": "^3.50.0"
+    "@cloudflare/workers-types": "^5.20261123.1",
+    "wrangler": "^4.166.0"
+  },
+  "dependencies": {
+    "@stacks/encryption": "^7.7.0"
   }
 }
