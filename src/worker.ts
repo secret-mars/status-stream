@@ -311,6 +311,14 @@ const HTML = (_origin: string, sitekey: string) => `<!doctype html>
   .view.on { display:flex; }
   @keyframes fadein { from { opacity:0; transform:scale(.985); } to { opacity:1; transform:none; } }
   /* browser view */
+  .v-recap { flex-direction:column; gap:1.2cqi; justify-content:center; align-items:center; text-align:center; }
+  .v-recap .rk { font-size:max(11px,1cqi); letter-spacing:.14em; text-transform:uppercase; color:var(--dust,#e8a87c); display:flex; align-items:center; gap:.6em; }
+  .v-recap .rimg { width:min(78%, 62cqi); aspect-ratio:2/1; border-radius:1.2cqi; background:#111 center/cover no-repeat; box-shadow:0 1.2cqi 4cqi rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.08); animation:fadein .6s ease-out; }
+  .v-recap .rt { font-size:max(15px,1.9cqi); font-weight:700; max-width:80%; }
+  .v-recap .rm { font-size:max(11px,1.1cqi); color:var(--muted); }
+  .v-recap .rdots { display:flex; gap:.6cqi; }
+  .v-recap .rdots i { width:.7cqi; height:.7cqi; min-width:6px; min-height:6px; border-radius:50%; background:#3a3d45; }
+  .v-recap .rdots i.on { background:var(--red); }
   .v-browser { align-items:center; justify-content:center; flex-direction:column; gap:1.2cqi; }
   .ogcard { width:100%; max-height:100%; aspect-ratio:2/1; border-radius:.8cqi; overflow:hidden; background:#111 center/cover no-repeat; box-shadow:0 1cqi 3cqi rgba(0,0,0,.5); }
   .gh-empty { color:var(--dim); font-size:max(12px,1.4cqi); display:flex; flex-direction:column; align-items:center; gap:1cqi; }
@@ -785,6 +793,7 @@ ${sitekey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
           <div class="pane-body">
             <div class="view v-browser" id="v-browser"><div class="ogcard" id="ogcard" style="display:none"></div><div class="gh-empty" id="gh-empty"><i class="ph-fill ph-github-logo"></i>Browsing GitHub</div></div>
             <div class="view v-editor" id="v-editor"><div class="tabs"><div class="tab"><i class="ph-fill ph-file-code"></i><span id="ed-file">file</span></div></div><div class="crumbs" id="ed-path"></div><div class="codebox" id="codebox"></div><div class="diffstat" id="ed-diff"></div></div>
+            <div class="view v-recap" id="v-recap"><div class="rk"><i class="ph-fill ph-moon-stars"></i><span>Between cycles · today on stream</span></div><a id="r-link" target="_blank" rel="noopener" style="display:contents"><div class="rimg" id="r-img"></div></a><div class="rt" id="r-title"></div><div class="rm" id="r-meta"></div><div class="rdots" id="r-dots"></div></div>
             <div class="view v-term on" id="v-term"><div class="termlog" id="termlog"><div class="tempty"><i class="ph-fill ph-terminal-window"></i>Waiting for the next step</div></div></div>
             <div class="stxcard" id="stxcard"><div class="lg"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M19.319 19.033l3.61 5.467h-2.697l-4.24-6.423-4.238 6.423H9.07l3.611-5.453H7.5v-2.07h17v2.056zm5.181-6.138v2.085h-17v-2.084h5.081L9.013 7.5h2.698l4.282 6.509L20.289 7.5h2.698l-3.568 5.395z"/></svg></div><div><div class="k">Stacks mainnet</div><div class="t" id="stx-t">Checking a transaction</div><a class="i" id="stx-i" target="_blank" rel="noopener"></a><span class="st" id="stx-st"></span></div></div>
             <div class="private" id="private"><i class="ph-fill ph-lock-simple"></i><span id="private-label">Working privately</span></div>
@@ -909,7 +918,7 @@ function isToday(ts){ return new Date(ts).toDateString() === new Date().toDateSt
 
 /* ---- workspace panes ---- */
 function showView(name){
-  ['browser','editor','term'].forEach(function(v){ $('v-' + v).classList.toggle('on', v === name); });
+  ['browser','editor','term','recap'].forEach(function(v){ $('v-' + v).classList.toggle('on', v === name); });
 }
 function setPrivate(on, label){ $('private').classList.toggle('on', !!on); if (label) $('private-label').textContent = label; }
 function setUrl(text, lock){ $('urltext').textContent = text; $('urlbar').firstChild.className = 'ph-fill ' + (lock ? 'ph-lock-simple' : 'ph-globe'); }
@@ -980,6 +989,9 @@ function feedRow(ev){
 function applyActivity(ev, live){
   if (ev.phase === 'sleep' && ev.until) { state.sleepUntil = ev.until; }
   else if (ev.phase && ev.phase !== 'sleep') { state.sleepUntil = 0; }
+  // Resting is shown by the countdown pill and the recap, not as a row that replaces the last real step.
+  if (ev.phase === 'sleep') { state.lastAct = state.lastAct || ev.ts || Date.now(); tick(); return; }
+  if (recapOn) { recapOn = false; showView('term'); }
   if (ev.phase) {
     var idx = PHASE_ORDER.indexOf(ev.phase);
     document.querySelectorAll('#phases .ph').forEach(function(p){ var i = PHASE_ORDER.indexOf(p.dataset.p); p.classList.toggle('on', p.dataset.p === ev.phase); p.classList.toggle('done', idx >= 0 && i < idx); });
@@ -1032,6 +1044,23 @@ function addHighlight(ev){
   hl.insertBefore(c, hl.firstChild);
   while (hl.children.length > 9) hl.removeChild(hl.lastChild);
   if (isToday(ev.ts)) { var id = 's-' + (ev.type === 'comment' ? 'review' : ev.type); var b = $(id); if (b) b.textContent = Number(b.textContent) + 1; }
+  if (isToday(ev.ts) && ev.repo && ev.number) { recap.unshift(ev); if (recap.length > 12) recap.pop(); }
+}
+/* ---- between cycles: rotate through today's published work on the stage ---- */
+var recap = [], recapOn = false, recapIdx = -1;
+function showRecap(now){
+  if (!recap.length) return;
+  var i = Math.floor(now / 9000) % recap.length;
+  if (!recapOn) { recapOn = true; recapIdx = -1; showView('recap'); setUrl('today on stream', true); }
+  if (i === recapIdx) return;
+  recapIdx = i;
+  var ev = recap[i], a = ART[ev.type] || ['star','Published'];
+  $('r-img').style.backgroundImage = 'url("' + og(ev.repo, ev.target, ev.number) + '")';
+  var img = $('r-img'); img.style.animation = 'none'; void img.offsetWidth; img.style.animation = '';
+  $('r-link').href = ev.url;
+  $('r-title').textContent = a[1] + ': ' + ev.repo.split('/')[1] + ' #' + ev.number;
+  $('r-meta').textContent = fmt(ev.ts) + ' · ' + (i + 1) + ' of ' + recap.length + ' today';
+  $('r-dots').innerHTML = recap.slice(0, 12).map(function(_, k){ return '<i' + (k === i ? ' class="on"' : '') + '></i>'; }).join('');
 }
 /* ---- narration ---- */
 function feedVisuals(body){
@@ -1191,6 +1220,8 @@ function tick(){
   st.innerHTML = icon(lab[0]) + '<span>' + lab[1] + '</span>';
   $('since').textContent = state.lastAct ? rel(now - state.lastAct) : '';
   $('hsince').textContent = state.lastAct ? '· ' + rel(now - state.lastAct) : '';
+  if (sleeping && now - state.lastAct > 60000) showRecap(now);
+  else if (recapOn && !sleeping) { recapOn = false; showView('term'); }
   var sl = $('sleep'); sl.classList.toggle('on', sleeping);
   if (sleeping) { var left = Math.floor((state.sleepUntil - now) / 1000); $('cd').textContent = pad(Math.floor(left / 60)) + ':' + pad(left % 60); }
 }
