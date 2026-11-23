@@ -236,7 +236,7 @@ function md(text){
       ALLOWED_TAGS:['p','br','strong','em','code','pre','a','ul','ol','li','blockquote','h1','h2','h3','h4','h5','h6','hr','table','thead','tbody','tr','th','td','del'],
       ALLOWED_ATTR:['href','title','target','rel'] });
   }
-  return esc(text).replace(/\n/g,'<br>');
+  return esc(text).replace(/\\n/g,'<br>');
 }
 function linkify(node){ node.querySelectorAll('a[href^="http"]').forEach(a => { a.target='_blank'; a.rel='noopener noreferrer'; }); }
 function feedNode(ev){
@@ -288,14 +288,14 @@ function addActivity(ev){
   flow.querySelectorAll('.step.cur').forEach(n => n.classList.remove('cur'));
   const st = document.createElement('div');
   st.className = 'step cur' + (ev.agent ? ' helper' : '');
-  st.innerHTML = '<span class="ico">' + esc(ev.icon || '\u2022') + '</span>' + esc(ev.label) + (ev.agent ? ' <span class="lane">' + esc(ev.agent) + '</span>' : '');
+  st.innerHTML = '<span class="ico">' + esc(ev.icon || '\\u2022') + '</span>' + esc(ev.label) + (ev.agent ? ' <span class="lane">' + esc(ev.agent) + '</span>' : '');
   flow.appendChild(st);
   const steps = flow.querySelectorAll('.step');
   steps.forEach((n, i) => n.classList.toggle('old', i < steps.length - 4));
   while (flow.children.length > 14) flow.removeChild(flow.firstChild);
   flow.scrollLeft = flow.scrollWidth;
   $('doing').innerHTML = (ev.agent ? '<b>' + esc(ev.agent) + '</b> ' : '<b>Secret Mars</b> ') + esc(ev.label);
-  $('doing-ico').textContent = ev.icon || '\u2022';
+  $('doing-ico').textContent = ev.icon || '\\u2022';
   lastActTs = ev.ts || Date.now();
   actCount++; $('flow-count').textContent = actCount + ' steps watched';
 }
